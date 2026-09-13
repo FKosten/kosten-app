@@ -166,6 +166,11 @@ const SUPABASE_URL = "https://cmwdkrgshsfrhtduszdq.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_ACCXhsFXKdFArbwTxoZl3A_3wxgvf4O";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// Clave pública VAPID (segura de exponer — es la mitad "pública" del par
+// de claves que identifica a esta app frente a los navegadores para poder
+// mandarle notificaciones push). La clave privada vive solo en Supabase.
+const VAPID_PUBLIC_KEY = "BNGyYA_7IvMTzwEEp8pTG6RiBMe4aqKB1aqcuLlbOR2ycwatUdOEypNXp7d9h8dbaEVCuHUhy3RORTV-6_ofZ0g";
+
 // =====================================================================
 // ESTADO
 // =====================================================================
@@ -383,6 +388,7 @@ async function renderApp(){
         <button class="signout" onclick="cerrarSesion()">Salir</button>
       </div>
     </div>
+    <div id="push-banner"></div>
 
     <div class="tabs" id="main-tabs" ${esStaff ? '' : 'style="display:none;"'}>
       <button class="tab-btn active" id="tabbtn-socio" onclick="setMainTab('socio')">Mi fichaje</button>
@@ -445,6 +451,7 @@ async function renderApp(){
   `;
   renderSocioContent();
   if (esStaff){ renderStaffSummary(); renderStaffBoard(); renderStaffHistory(); refreshEquipoSelect('esp-embarcacion','embarcacion'); refreshEquipoSelect('esp-remo','remo'); refreshEquipoSelect('esp-chaleco','chaleco'); document.getElementById('esp-hora').value = horaMasMinutos(90); }
+  renderPushBanner();
 
   pollTimer = setInterval(async () => {
     await cargarDatos();
@@ -681,6 +688,71 @@ boot();
 
 if ('serviceWorker' in navigator){
   window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(()=>{}); });
+}
+
+// =====================================================================
+// NOTIFICACIONES PUSH (recordatorio de salida + alerta a staff)
+// =====================================================================
+function urlBase64ToUint8Array(base64String){
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
+  return outputArray;
+}
+
+async function renderPushBanner(){
+  const cont = document.getElementById('push-banner');
+  if (!cont) return;
+  const soportado = 'serviceWorker' in navigator && 'PushManager' in window;
+  if (!soportado){ cont.innerHTML = ''; return; }
+  if (Notification.permission === 'granted'){
+    // Ya tiene permiso del navegador; nos aseguramos de que la suscripción
+    // esté guardada en la base (por si se perdió, ej. tras reinstalar la PWA).
+    asegurarSuscripcion().catch(()=>{});
+    cont.innerHTML = '';
+    return;
+  }
+  if (Notification.permission === 'denied'){
+    cont.innerHTML = `<p class="hint" style="margin:0 0 4px;">🔕 Tenés las notificaciones bloqueadas en este navegador. Activalas desde la configuración del sitio si querés recibir avisos.</p>`;
+    return;
+  }
+  cont.innerHTML = `
+    <div class="card" style="padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+      <span class="hint" style="margin:0;">🔔 Activá las notificaciones para recibir el recordatorio de salida.</span>
+      <button class="btn btn-primary" onclick="activarNotificaciones()">Activar notificaciones</button>
+    </div>`;
+}
+
+async function activarNotificaciones(){
+  try{
+    const permiso = await Notification.requestPermission();
+    if (permiso !== 'granted'){ toast('No se activaron las notificaciones.'); renderPushBanner(); return; }
+    await asegurarSuscripcion();
+    toast('¡Notificaciones activadas!');
+  } catch(e){
+    toast('No se pudo activar: ' + e.message);
+  }
+  renderPushBanner();
+}
+
+async function asegurarSuscripcion(){
+  const reg = await navigator.serviceWorker.ready;
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub){
+    sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+    });
+  }
+  const json = sub.toJSON();
+  await sb.from('push_subscriptions').upsert({
+    user_id: session.user.id,
+    endpoint: json.endpoint,
+    p256dh: json.keys.p256dh,
+    auth: json.keys.auth
+  }, { onConflict: 'endpoint' });
 }
 </script>
 </body>
