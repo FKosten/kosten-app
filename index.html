@@ -178,6 +178,7 @@ let pollTimer = null;
 
 function pad(n){ return String(n).padStart(2,'0'); }
 function fmtHora(iso){ const d = new Date(iso); return pad(d.getHours())+':'+pad(d.getMinutes()); }
+function fechaLocal(iso){ const d = new Date(iso); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
 function nowIso(){ return new Date().toISOString(); }
 function horaMasMinutos(mins){ const d = new Date(Date.now()+mins*60000); return pad(d.getHours())+':'+pad(d.getMinutes()); }
 function toast(msg){
@@ -404,6 +405,20 @@ async function renderApp(){
         </div>
         <div id="staff-board"></div>
       </div>
+
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:2px;">
+          <div>
+            <h2 style="margin-bottom:0;">Historial de fichajes</h2>
+            <p class="hint">Todos los ingresos registrados (socios y esporádicos), del día que elijas.</p>
+          </div>
+          <label class="field" style="margin:0;">
+            <span>Fecha</span>
+            <input type="date" id="hist-fecha" onchange="renderStaffHistory()"/>
+          </label>
+        </div>
+        <div id="staff-history"></div>
+      </div>
     </div>
 
     <div class="overlay" id="modal-esporadico">
@@ -429,12 +444,12 @@ async function renderApp(){
     </div>
   `;
   renderSocioContent();
-  if (esStaff){ renderStaffSummary(); renderStaffBoard(); refreshEquipoSelect('esp-embarcacion','embarcacion'); refreshEquipoSelect('esp-remo','remo'); refreshEquipoSelect('esp-chaleco','chaleco'); document.getElementById('esp-hora').value = horaMasMinutos(90); }
+  if (esStaff){ renderStaffSummary(); renderStaffBoard(); renderStaffHistory(); refreshEquipoSelect('esp-embarcacion','embarcacion'); refreshEquipoSelect('esp-remo','remo'); refreshEquipoSelect('esp-chaleco','chaleco'); document.getElementById('esp-hora').value = horaMasMinutos(90); }
 
   pollTimer = setInterval(async () => {
     await cargarDatos();
     renderSocioContent();
-    if (esStaff){ renderStaffSummary(); renderStaffBoard(); }
+    if (esStaff){ renderStaffSummary(); renderStaffBoard(); renderStaffHistory(); }
   }, 20000);
 }
 
@@ -571,6 +586,33 @@ function renderStaffBoard(){
   }).join('');
 }
 
+function renderStaffHistory(){
+  const cont = document.getElementById('staff-history');
+  const inputFecha = document.getElementById('hist-fecha');
+  if (!cont || !inputFecha) return;
+  if (!inputFecha.value) inputFecha.value = fechaLocal(nowIso());
+  const fecha = inputFecha.value;
+  const delDia = fichajes
+    .filter(f => fechaLocal(f.hora_ingreso) === fecha)
+    .sort((a,b) => new Date(b.hora_ingreso) - new Date(a.hora_ingreso));
+  if (delDia.length === 0){ cont.innerHTML = '<p class="empty">No hay fichajes registrados ese día.</p>'; return; }
+  cont.innerHTML = delDia.map(f=>{
+    const nombreSocio = f.perfiles ? [f.perfiles.nombre, f.perfiles.apellido].filter(Boolean).join(' ') : '';
+    const nombre = f.es_esporadico ? (f.nombre_esporadico||'Esporádico') : (nombreSocio || 'Socio');
+    const salida = f.estado === 'cerrado' && f.hora_salida_real ? fmtHora(f.hora_salida_real) : 'sigue en el agua';
+    return `
+      <div class="board-row">
+        <div class="board-name">${nombre}${f.es_esporadico ? '<span class="tag-esp">esporádico</span>' : ''}</div>
+        <div class="board-equip">
+          <span class="equip-tag">🛶 ${labelDe(f.embarcacion_id,'embarcacion')}</span>
+          <span class="equip-tag">🪛 ${labelDe(f.remo_id,'remo')}</span>
+          <span class="equip-tag">🦺 ${labelDe(f.chaleco_id,'chaleco')}</span>
+        </div>
+        <div class="board-time">Ingreso <b>${fmtHora(f.hora_ingreso)}</b> · Salida <b>${salida}</b></div>
+      </div>`;
+  }).join('');
+}
+
 // =====================================================================
 // ACCIONES DE ESCRITURA
 // =====================================================================
@@ -594,7 +636,7 @@ async function ficharIngreso(){
   await Promise.all([embarcacion_id, remo_id, chaleco_id].filter(Boolean).map(id => sb.from('equipo').update({estado:'en_uso'}).eq('id', id)));
   toast('Ingreso fichado. ¡Buena navegada!');
   await cargarDatos(); renderSocioContent();
-  if (perfil.rol==='staff'||perfil.rol==='admin'){ renderStaffSummary(); renderStaffBoard(); }
+  if (perfil.rol==='staff'||perfil.rol==='admin'){ renderStaffSummary(); renderStaffBoard(); renderStaffHistory(); }
 }
 
 async function ficharSalida(fichajeId, desdeStaff){
@@ -605,7 +647,7 @@ async function ficharSalida(fichajeId, desdeStaff){
   await Promise.all([f.embarcacion_id, f.remo_id, f.chaleco_id].filter(Boolean).map(id => sb.from('equipo').update({estado:'disponible'}).eq('id', id)));
   toast(desdeStaff ? 'Salida marcada por staff.' : 'Salida fichada. ¡Bienvenido a tierra!');
   await cargarDatos(); renderSocioContent();
-  if (perfil.rol==='staff'||perfil.rol==='admin'){ renderStaffSummary(); renderStaffBoard(); }
+  if (perfil.rol==='staff'||perfil.rol==='admin'){ renderStaffSummary(); renderStaffBoard(); renderStaffHistory(); }
 }
 
 async function registrarEsporadico(){
@@ -632,7 +674,7 @@ async function registrarEsporadico(){
   closeModal('modal-esporadico');
   document.getElementById('esp-nombre').value=''; document.getElementById('esp-dni').value='';
   toast('Ingreso esporádico registrado.');
-  await cargarDatos(); renderStaffSummary(); renderStaffBoard();
+  await cargarDatos(); renderStaffSummary(); renderStaffBoard(); renderStaffHistory();
 }
 
 boot();
