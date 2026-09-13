@@ -360,7 +360,7 @@ async function guardarPerfil(){
 async function cargarDatos(){
   const [{ data: eq, error: e1 }, { data: fi, error: e2 }] = await Promise.all([
     sb.from('equipo').select('*'),
-    sb.from('fichajes').select('*').order('hora_ingreso', { ascending:false }).limit(200)
+    sb.from('fichajes').select('*, perfiles(nombre,apellido)').order('hora_ingreso', { ascending:false }).limit(200)
   ]);
   if (e1) toast('Error leyendo equipo: '+e1.message);
   if (e2) toast('Error leyendo fichajes: '+e2.message);
@@ -555,7 +555,8 @@ function renderStaffBoard(){
   cont.innerHTML = activos.map(f=>{
     const est = estadoFichaje(f);
     const dot = est==='ok'?'dot-ok':est==='recordatorio'?'dot-warn':'dot-danger';
-    const nombre = f.es_esporadico ? (f.nombre_esporadico||'Esporádico') : (f.socio_nombre||'Socio');
+    const nombreSocio = f.perfiles ? [f.perfiles.nombre, f.perfiles.apellido].filter(Boolean).join(' ') : '';
+    const nombre = f.es_esporadico ? (f.nombre_esporadico||'Esporádico') : (nombreSocio || 'Socio');
     return `
       <div class="board-row">
         <div class="board-name"><span class="status-dot ${dot}"></span>${nombre}${f.es_esporadico ? '<span class="tag-esp">esporádico</span>' : ''}</div>
@@ -585,7 +586,7 @@ async function ficharIngreso(){
   if (est.getTime() < Date.now()) est.setDate(est.getDate()+1);
 
   const { error } = await sb.from('fichajes').insert({
-    socio_id: session.user.id, socio_nombre: perfil.nombre+' '+perfil.apellido, es_esporadico: false,
+    socio_id: session.user.id, es_esporadico: false,
     embarcacion_id, remo_id, chaleco_id,
     hora_estimada_salida: est.toISOString(), marcado_por: 'socio'
   });
