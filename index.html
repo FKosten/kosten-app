@@ -180,6 +180,8 @@ let equipo = [];
 let fichajes = [];
 let tyc = null;
 let pollTimer = null;
+let socios = [];
+let pagosSinAsociar = [];
 
 function pad(n){ return String(n).padStart(2,'0'); }
 function fmtHora(iso){ const d = new Date(iso); return pad(d.getHours())+':'+pad(d.getMinutes()); }
@@ -374,6 +376,22 @@ async function cargarDatos(){
   fichajes = fi || [];
 }
 
+async function refrescarPerfil(){
+  const { data } = await sb.from('perfiles').select('*').eq('id', session.user.id).maybeSingle();
+  if (data) perfil = data;
+}
+
+async function cargarDatosStaffCuotas(){
+  const [{ data: sc, error: e3 }, { data: ps, error: e4 }] = await Promise.all([
+    sb.from('perfiles').select('id,nombre,apellido,dni,rol,cuota_vencida').eq('rol','socio').order('nombre'),
+    sb.from('pagos_sin_asociar').select('*').eq('estado','pendiente').order('created_at', { ascending:false })
+  ]);
+  if (e3) toast('Error leyendo socios: '+e3.message);
+  if (e4) toast('Error leyendo pagos sin asociar: '+e4.message);
+  socios = sc || [];
+  pagosSinAsociar = ps || [];
+}
+
 async function renderApp(){
   await cargarDatos();
   const esStaff = perfil.rol === 'staff' || perfil.rol === 'admin';
@@ -410,6 +428,19 @@ async function renderApp(){
           <button class="btn btn-primary" onclick="openModal('modal-esporadico')">+ Registrar esporádico</button>
         </div>
         <div id="staff-board"></div>
+      </div>
+
+      <div class="card">
+        <h2>Cuotas</h2>
+        <p class="hint">El estado de cada socio se actualiza solo con cada pago de Mercado Pago. Para casos manuales (efectivo, un pago que no se pudo identificar solo), usá lo de abajo.</p>
+        <div style="margin-bottom:16px;">
+          <label class="field" style="margin-bottom:8px;"><span>Marcar cuota del mes como pagada</span>
+            <select id="cuota-socio-select"></select>
+          </label>
+          <button class="btn btn-ghost" onclick="marcarCuotaManual()">Marcar como pagada (este mes)</button>
+        </div>
+        <div id="staff-vencidos"></div>
+        <div id="staff-pagos-sin-asociar" style="margin-top:14px;"></div>
       </div>
 
       <div class="card">
@@ -450,13 +481,21 @@ async function renderApp(){
     </div>
   `;
   renderSocioContent();
-  if (esStaff){ renderStaffSummary(); renderStaffBoard(); renderStaffHistory(); refreshEquipoSelect('esp-embarcacion','embarcacion'); refreshEquipoSelect('esp-remo','remo'); refreshEquipoSelect('esp-chaleco','chaleco'); document.getElementById('esp-hora').value = horaMasMinutos(90); }
+  if (esStaff){
+    renderStaffSummary(); renderStaffBoard(); renderStaffHistory();
+    refreshEquipoSelect('esp-embarcacion','embarcacion'); refreshEquipoSelect('esp-remo','remo'); refreshEquipoSelect('esp-chaleco','chaleco'); document.getElementById('esp-hora').value = horaMasMinutos(90);
+    await cargarDatosStaffCuotas(); refrescarSelectSocios(); renderStaffVencidos(); renderPagosSinAsociar();
+  }
   renderPushBanner();
 
   pollTimer = setInterval(async () => {
+    await refrescarPerfil();
     await cargarDatos();
     renderSocioContent();
-    if (esStaff){ renderStaffSummary(); renderStaffBoard(); renderStaffHistory(); }
+    if (esStaff){
+      renderStaffSummary(); renderStaffBoard(); renderStaffHistory();
+      await cargarDatosStaffCuotas(); refrescarSelectSocios(); renderStaffVencidos(); renderPagosSinAsociar();
+    }
   }, 20000);
 }
 
@@ -489,9 +528,13 @@ function labelDe(id, tipo){
   const e = equipo.find(x=>x.id===id);
   return e ? labelEquipoItem(e) : '—';
 }
-function refreshEquipoSelect(selectId, tipo){
+function refreshEquipoSelect(selectId, tipo, soloPropio){
   const sel = document.getElementById(selectId);
   if (!sel) return;
+  if (soloPropio){
+    sel.innerHTML = `<option value="propio" selected>${labelPropio(tipo)}</option>`;
+    return;
+  }
   const disponibles = equipo.filter(e => e.tipo===tipo && e.estado==='disponible')
     .sort((a,b)=> (a.subtipo||'').localeCompare(b.subtipo||'') || a.numero-b.numero);
   sel.innerHTML = disponibles.map(e=>`<option value="${e.id}">${labelEquipoItem(e)}</option>`).join('') + `<option value="propio">${labelPropio(tipo)}</option>`;
@@ -504,6 +547,17 @@ function resolverSeleccion(selectId){
 function renderSocioContent(){
   const cont = document.getElementById('socio-content');
   const activo = fichajes.find(f=>f.socio_id===session.user.id && f.estado==='en_agua');
+  const cuotaVencida = !!perfil.cuota_vencida;
+  const cuotaCard = cuotaVencida ? `
+    <div class="card" style="border-color:var(--warn);">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <div>
+          <h2 style="margin-bottom:2px;">Cuota vencida</h2>
+          <p class="hint" style="margin:0;">Podés fichar igual usando tu propio equipo. Para usar equipo del club, primero regularizá la cuota.</p>
+        </div>
+        <button class="btn btn-primary" onclick="pagarCuota()">Pagar cuota</button>
+      </div>
+    </div>` : '';
   if (activo){
     const est = estadoFichaje(activo);
     const chip = est==='ok' ? ['chip-ok','En agua'] : est==='recordatorio' ? ['chip-warn','Recordá fichar salida'] : ['chip-danger','Excedido — avisar a staff'];
@@ -511,6 +565,7 @@ function renderSocioContent(){
               : est==='recordatorio' ? ['msg-warn','Ya pasó tu hora estimada de salida.']
               : ['msg-danger','Superaste largamente tu hora estimada. El staff ya fue avisado.'];
     cont.innerHTML = `
+      ${cuotaCard}
       <div class="ticket">
         <span class="status-chip ${chip[0]}">${chip[1]}</span>
         <div class="clock-label">Ingresaste al agua</div>
@@ -528,9 +583,10 @@ function renderSocioContent(){
     `;
   } else {
     cont.innerHTML = `
+      ${cuotaCard}
       <div class="card">
         <h2>Fichar ingreso al agua</h2>
-        <p class="hint">Elegí el equipo que vas a usar y estimá tu hora de salida — como el estacionamiento medido.</p>
+        <p class="hint">${cuotaVencida ? 'Con la cuota vencida solo podés usar tu propio equipo.' : 'Elegí el equipo que vas a usar y estimá tu hora de salida — como el estacionamiento medido.'}</p>
         <div class="row3">
           <label class="field"><span>Embarcación</span><select id="nf-embarcacion"></select></label>
           <label class="field"><span>Remo</span><select id="nf-remo"></select></label>
@@ -542,9 +598,9 @@ function renderSocioContent(){
       </div>
       ${renderHistorial()}
     `;
-    refreshEquipoSelect('nf-embarcacion','embarcacion');
-    refreshEquipoSelect('nf-remo','remo');
-    refreshEquipoSelect('nf-chaleco','chaleco');
+    refreshEquipoSelect('nf-embarcacion','embarcacion', cuotaVencida);
+    refreshEquipoSelect('nf-remo','remo', cuotaVencida);
+    refreshEquipoSelect('nf-chaleco','chaleco', cuotaVencida);
   }
 }
 function renderHistorial(){
@@ -630,6 +686,10 @@ async function ficharIngreso(){
   const embarcacion_id = resolverSeleccion('nf-embarcacion');
   const remo_id = resolverSeleccion('nf-remo');
   const chaleco_id = resolverSeleccion('nf-chaleco');
+  if (perfil.cuota_vencida && (embarcacion_id || remo_id || chaleco_id)){
+    errEl.textContent = 'Tu cuota está vencida — solo podés fichar con equipo propio.';
+    return;
+  }
   const [hh,mm] = hora.split(':').map(Number);
   const est = new Date(); est.setHours(hh,mm,0,0);
   if (est.getTime() < Date.now()) est.setDate(est.getDate()+1);
@@ -753,6 +813,90 @@ async function asegurarSuscripcion(){
     p256dh: json.keys.p256dh,
     auth: json.keys.auth
   }, { onConflict: 'endpoint' });
+}
+
+// =====================================================================
+// CUOTAS
+// =====================================================================
+async function pagarCuota(){
+  try{
+    const resp = await fetch(SUPABASE_URL + '/functions/v1/crear-pago-cuota', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + session.access_token, 'apikey': SUPABASE_ANON_KEY }
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.init_point){ toast('No se pudo generar el pago: ' + (data.error||'')); return; }
+    window.open(data.init_point, '_blank');
+  } catch(e){
+    toast('No se pudo generar el pago: ' + e.message);
+  }
+}
+
+function refrescarSelectSocios(){
+  const sel = document.getElementById('cuota-socio-select');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Elegí un socio…</option>' +
+    socios.map(s=>`<option value="${s.id}">${[s.nombre,s.apellido].filter(Boolean).join(' ')||s.dni||'Socio'}${s.cuota_vencida?' (vencida)':''}</option>`).join('');
+}
+
+function renderStaffVencidos(){
+  const cont = document.getElementById('staff-vencidos');
+  if (!cont) return;
+  const vencidos = socios.filter(s => s.cuota_vencida);
+  if (vencidos.length === 0){ cont.innerHTML = '<p class="hint" style="margin:0;">Todos los socios están al día.</p>'; return; }
+  cont.innerHTML = `<p class="hint" style="margin:0 0 6px;"><b>${vencidos.length}</b> socio(s) con la cuota vencida:</p>` +
+    vencidos.map(s => `<div class="history-item"><span>${[s.nombre,s.apellido].filter(Boolean).join(' ') || s.dni || 'Socio'}</span></div>`).join('');
+}
+
+function renderPagosSinAsociar(){
+  const cont = document.getElementById('staff-pagos-sin-asociar');
+  if (!cont) return;
+  if (pagosSinAsociar.length === 0){ cont.innerHTML = ''; return; }
+  cont.innerHTML = `<p class="hint" style="margin:0 0 6px;"><b>Pagos de Mercado Pago sin asociar a ningún socio:</b></p>` +
+    pagosSinAsociar.map(p => `
+      <div class="board-row" style="grid-template-columns:1.4fr 1fr auto;">
+        <div>
+          <div class="board-name">${p.nombre_pagador || 'Sin nombre'}</div>
+          <div class="hint" style="margin:2px 0 0;">DNI: ${p.dni_recibido||'—'} · Email: ${p.email_pagador||'—'} · $${p.monto??'—'}</div>
+        </div>
+        <select id="asociar-${p.id}"></select>
+        <button class="btn btn-ghost" onclick="asociarPago('${p.id}')">Asociar</button>
+      </div>
+    `).join('');
+  pagosSinAsociar.forEach(p => {
+    const sel = document.getElementById('asociar-'+p.id);
+    if (sel) sel.innerHTML = '<option value="">Elegí un socio…</option>' + socios.map(s=>`<option value="${s.id}">${[s.nombre,s.apellido].filter(Boolean).join(' ')||s.dni||'Socio'}</option>`).join('');
+  });
+}
+
+async function marcarCuotaManual(){
+  const socioId = document.getElementById('cuota-socio-select').value;
+  if (!socioId){ toast('Elegí un socio.'); return; }
+  const periodo = new Date().toISOString().slice(0,7) + '-01';
+  const { error } = await sb.from('cuotas').upsert({
+    socio_id: socioId, periodo, medio: 'manual', fecha_pago: nowIso(), registrado_por: session.user.id
+  }, { onConflict: 'socio_id,periodo' });
+  if (error){ toast('No se pudo marcar: ' + error.message); return; }
+  await sb.from('perfiles').update({ cuota_vencida: false }).eq('id', socioId);
+  toast('Cuota marcada como pagada.');
+  await cargarDatosStaffCuotas(); refrescarSelectSocios(); renderStaffVencidos(); renderPagosSinAsociar();
+}
+
+async function asociarPago(pagoId){
+  const sel = document.getElementById('asociar-'+pagoId);
+  const socioId = sel ? sel.value : '';
+  if (!socioId){ toast('Elegí a qué socio corresponde.'); return; }
+  const pago = pagosSinAsociar.find(p=>p.id===pagoId);
+  if (!pago) return;
+  const { error: e1 } = await sb.from('cuotas').upsert({
+    socio_id: socioId, periodo: pago.periodo, monto: pago.monto, fecha_pago: pago.fecha_pago,
+    medio: 'mercado_pago', mp_payment_id: pago.mp_payment_id
+  }, { onConflict: 'socio_id,periodo' });
+  if (e1){ toast('No se pudo asociar: ' + e1.message); return; }
+  await sb.from('perfiles').update({ cuota_vencida: false }).eq('id', socioId);
+  await sb.from('pagos_sin_asociar').update({ estado:'asociado', asociado_a: socioId, resuelto_por: session.user.id, resuelto_en: nowIso() }).eq('id', pagoId);
+  toast('Pago asociado.');
+  await cargarDatosStaffCuotas(); refrescarSelectSocios(); renderStaffVencidos(); renderPagosSinAsociar();
 }
 </script>
 </body>
