@@ -418,54 +418,72 @@ async function renderApp(){
     </div>
 
     <div class="panel" id="panel-staff">
-      <div class="summary-strip" id="staff-summary"></div>
-      <div class="card">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:2px;">
-          <div>
-            <h2 style="margin-bottom:0;">En el agua ahora</h2>
-            <p class="hint">🟡 pasó la hora estimada de salida · 🔴 hace más de 30 min que debería haber salido.</p>
-          </div>
-          <button class="btn btn-primary" onclick="openModal('modal-esporadico')">+ Registrar esporádico</button>
-        </div>
-        <div id="staff-board"></div>
+      <div class="tabs" id="staff-tabs">
+        <button class="tab-btn active" id="stafftab-fichaje" onclick="setStaffTab('fichaje')">Fichaje</button>
+        <button class="tab-btn" id="stafftab-cuotas" onclick="setStaffTab('cuotas')">Cuotas</button>
+        <button class="tab-btn" id="stafftab-inventario" onclick="setStaffTab('inventario')">Inventario</button>
       </div>
 
-      <div class="card">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:2px;">
-          <div>
-            <h2 style="margin-bottom:0;">Inventario</h2>
-            <p class="hint">Kayaks, SUP, remos y chalecos del club. Lo que esté "Disponible" es lo que van a poder elegir los socios al fichar.</p>
+      <div class="panel active" id="staffsub-fichaje">
+        <div class="summary-strip" id="staff-summary"></div>
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:2px;">
+            <div>
+              <h2 style="margin-bottom:0;">En el agua ahora</h2>
+              <p class="hint">🟡 pasó la hora estimada de salida · 🔴 hace más de 30 min que debería haber salido.</p>
+            </div>
+            <button class="btn btn-primary" onclick="openModal('modal-esporadico')">+ Registrar esporádico</button>
           </div>
-          <button class="btn btn-primary" onclick="abrirModalEquipo()">+ Agregar equipo</button>
+          <div id="staff-board"></div>
         </div>
-        <div id="staff-inventario"></div>
+
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:2px;">
+            <div>
+              <h2 style="margin-bottom:0;">Historial de fichajes</h2>
+              <p class="hint">Todos los ingresos registrados (socios y esporádicos), del día que elijas.</p>
+            </div>
+            <label class="field" style="margin:0;">
+              <span>Fecha</span>
+              <input type="date" id="hist-fecha" onchange="renderStaffHistory()"/>
+            </label>
+          </div>
+          <div id="staff-history"></div>
+        </div>
       </div>
 
-      <div class="card">
-        <h2>Cuotas</h2>
-        <p class="hint">El estado de cada socio se actualiza solo con cada pago de Mercado Pago. Para casos manuales (efectivo, un pago que no se pudo identificar solo), usá lo de abajo.</p>
-        <div style="margin-bottom:16px;">
-          <label class="field" style="margin-bottom:8px;"><span>Marcar cuota del mes como pagada</span>
-            <select id="cuota-socio-select"></select>
-          </label>
-          <button class="btn btn-ghost" onclick="marcarCuotaManual()">Marcar como pagada (este mes)</button>
+      <div class="panel" id="staffsub-cuotas">
+        <div class="card">
+          <h2>Cuotas</h2>
+          <p class="hint">El estado de cada socio se actualiza solo con cada pago de Mercado Pago. Para casos manuales (efectivo, un pago que no se pudo identificar solo), usá lo de abajo.</p>
+          <div style="margin-bottom:16px;">
+            <label class="field" style="margin-bottom:8px;"><span>Marcar cuota del mes como pagada</span>
+              <select id="cuota-socio-select"></select>
+            </label>
+            <button class="btn btn-ghost" onclick="marcarCuotaManual()">Marcar como pagada (este mes)</button>
+          </div>
+          <div id="staff-vencidos"></div>
+          <div id="staff-pagos-sin-asociar" style="margin-top:14px;"></div>
         </div>
-        <div id="staff-vencidos"></div>
-        <div id="staff-pagos-sin-asociar" style="margin-top:14px;"></div>
       </div>
 
-      <div class="card">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:2px;">
-          <div>
-            <h2 style="margin-bottom:0;">Historial de fichajes</h2>
-            <p class="hint">Todos los ingresos registrados (socios y esporádicos), del día que elijas.</p>
+      <div class="panel" id="staffsub-inventario">
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:2px;">
+            <div>
+              <h2 style="margin-bottom:0;">Inventario</h2>
+              <p class="hint">Lo que esté "Disponible" es lo que van a poder elegir los socios al fichar.</p>
+            </div>
+            <button class="btn btn-primary" onclick="abrirModalEquipo()">+ Agregar equipo</button>
           </div>
-          <label class="field" style="margin:0;">
-            <span>Fecha</span>
-            <input type="date" id="hist-fecha" onchange="renderStaffHistory()"/>
-          </label>
+          <div class="tabs" id="inv-tabs" style="margin-bottom:14px;">
+            <button class="tab-btn active" id="invtab-kayak" onclick="setInvTab('kayak')">Kayaks</button>
+            <button class="tab-btn" id="invtab-sup" onclick="setInvTab('sup')">SUP</button>
+            <button class="tab-btn" id="invtab-remo" onclick="setInvTab('remo')">Remos</button>
+            <button class="tab-btn" id="invtab-chaleco" onclick="setInvTab('chaleco')">Chalecos</button>
+          </div>
+          <div id="staff-inventario"></div>
         </div>
-        <div id="staff-history"></div>
       </div>
     </div>
 
@@ -540,6 +558,20 @@ function setMainTab(which){
   document.getElementById('panel-staff').classList.toggle('active', which==='staff');
   document.getElementById('tabbtn-socio').classList.toggle('active', which==='socio');
   document.getElementById('tabbtn-staff').classList.toggle('active', which==='staff');
+}
+let staffTabActual = 'fichaje';
+function setStaffTab(which){
+  staffTabActual = which;
+  ['fichaje','cuotas','inventario'].forEach(w => {
+    document.getElementById('staffsub-'+w).classList.toggle('active', w===which);
+    document.getElementById('stafftab-'+w).classList.toggle('active', w===which);
+  });
+}
+let invTabActual = 'kayak';
+function setInvTab(cat){
+  invTabActual = cat;
+  ['kayak','sup','remo','chaleco'].forEach(c => document.getElementById('invtab-'+c).classList.toggle('active', c===cat));
+  renderStaffInventario();
 }
 function openModal(id){ document.getElementById(id).classList.add('open'); }
 function closeModal(id){ document.getElementById(id).classList.remove('open'); }
@@ -854,30 +886,29 @@ async function asegurarSuscripcion(){
 // =====================================================================
 // INVENTARIO
 // =====================================================================
+const GRUPOS_INVENTARIO = {
+  kayak: { filtro: e=>e.tipo==='embarcacion' && e.subtipo==='kayak', tipo:'embarcacion', subtipo:'kayak' },
+  sup: { filtro: e=>e.tipo==='embarcacion' && e.subtipo==='sup', tipo:'embarcacion', subtipo:'sup' },
+  remo: { filtro: e=>e.tipo==='remo', tipo:'remo', subtipo:null },
+  chaleco: { filtro: e=>e.tipo==='chaleco', tipo:'chaleco', subtipo:null },
+};
+
 function renderStaffInventario(){
   const cont = document.getElementById('staff-inventario');
   if (!cont) return;
-  const grupos = [
-    { label:'Kayaks', filtro: e=>e.tipo==='embarcacion' && e.subtipo==='kayak' },
-    { label:'SUP', filtro: e=>e.tipo==='embarcacion' && e.subtipo==='sup' },
-    { label:'Remos', filtro: e=>e.tipo==='remo' },
-    { label:'Chalecos', filtro: e=>e.tipo==='chaleco' },
-  ];
-  const bloques = grupos.map(g => {
-    const items = equipo.filter(g.filtro).sort((a,b)=>a.numero-b.numero);
-    if (items.length===0) return '';
-    return `<p class="hint" style="margin:12px 0 4px;"><b>${g.label}</b></p>` + items.map(e => `
-      <div class="board-row" style="grid-template-columns:1fr auto;">
-        <div class="board-name">${labelEquipoItem(e)}${e.estado==='de_baja' ? ' <span class="tag-esp">de baja</span>' : ''}</div>
-        <select onchange="cambiarEstadoEquipo('${e.id}', this.value)">
-          <option value="disponible" ${e.estado==='disponible'?'selected':''}>Disponible</option>
-          <option value="en_uso" ${e.estado==='en_uso'?'selected':''}>En uso</option>
-          <option value="mantenimiento" ${e.estado==='mantenimiento'?'selected':''}>En mantenimiento</option>
-          <option value="de_baja" ${e.estado==='de_baja'?'selected':''}>De baja</option>
-        </select>
-      </div>`).join('');
-  }).join('');
-  cont.innerHTML = bloques || '<p class="empty">Todavía no cargaste ningún equipo.</p>';
+  const g = GRUPOS_INVENTARIO[invTabActual] || GRUPOS_INVENTARIO.kayak;
+  const items = equipo.filter(g.filtro).sort((a,b)=>a.numero-b.numero);
+  if (items.length===0){ cont.innerHTML = '<p class="empty">Todavía no cargaste ningún equipo acá.</p>'; return; }
+  cont.innerHTML = items.map(e => `
+    <div class="board-row" style="grid-template-columns:1fr auto;">
+      <div class="board-name">${labelEquipoItem(e)}${e.estado==='de_baja' ? ' <span class="tag-esp">de baja</span>' : ''}</div>
+      <select onchange="cambiarEstadoEquipo('${e.id}', this.value)">
+        <option value="disponible" ${e.estado==='disponible'?'selected':''}>Disponible</option>
+        <option value="en_uso" ${e.estado==='en_uso'?'selected':''}>En uso</option>
+        <option value="mantenimiento" ${e.estado==='mantenimiento'?'selected':''}>En mantenimiento</option>
+        <option value="de_baja" ${e.estado==='de_baja'?'selected':''}>De baja</option>
+      </select>
+    </div>`).join('');
 }
 
 function onCambioTipoEquipo(){
@@ -886,8 +917,9 @@ function onCambioTipoEquipo(){
 }
 
 function abrirModalEquipo(){
-  document.getElementById('eq-tipo').value = 'embarcacion';
-  document.getElementById('eq-subtipo').value = 'kayak';
+  const g = GRUPOS_INVENTARIO[invTabActual] || GRUPOS_INVENTARIO.kayak;
+  document.getElementById('eq-tipo').value = g.tipo;
+  document.getElementById('eq-subtipo').value = g.subtipo || 'kayak';
   document.getElementById('eq-numero').value = '';
   document.getElementById('eq-err').textContent = '';
   onCambioTipoEquipo();
