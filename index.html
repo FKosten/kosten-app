@@ -382,7 +382,7 @@ async function cargarDatos(){
 }
 
 async function cargarDatosStaffCredenciales(){
-  const { data, error } = await sb.from('credenciales').select('*, perfiles(nombre,apellido)').order('fecha', { ascending:false }).limit(300);
+  const { data, error } = await sb.from('credenciales').select('*, perfiles!credenciales_socio_id_fkey(nombre,apellido)').order('fecha', { ascending:false }).limit(300);
   if (error) toast('Error leyendo credenciales: '+error.message);
   credenciales = data || [];
 }
