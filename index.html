@@ -182,6 +182,8 @@ let tyc = null;
 let pollTimer = null;
 let socios = [];
 let pagosSinAsociar = [];
+let credencialesPropias = [];
+let credenciales = [];
 
 function pad(n){ return String(n).padStart(2,'0'); }
 function fmtHora(iso){ const d = new Date(iso); return pad(d.getHours())+':'+pad(d.getMinutes()); }
@@ -366,14 +368,23 @@ async function guardarPerfil(){
 // APP PRINCIPAL (fichaje + staff)
 // =====================================================================
 async function cargarDatos(){
-  const [{ data: eq, error: e1 }, { data: fi, error: e2 }] = await Promise.all([
+  const [{ data: eq, error: e1 }, { data: fi, error: e2 }, { data: cr, error: e5 }] = await Promise.all([
     sb.from('equipo').select('*'),
-    sb.from('fichajes').select('*, perfiles(nombre,apellido)').order('hora_ingreso', { ascending:false }).limit(200)
+    sb.from('fichajes').select('*, perfiles(nombre,apellido)').order('hora_ingreso', { ascending:false }).limit(200),
+    sb.from('credenciales').select('*').eq('socio_id', session.user.id).order('fecha', { ascending:false })
   ]);
   if (e1) toast('Error leyendo equipo: '+e1.message);
   if (e2) toast('Error leyendo fichajes: '+e2.message);
+  if (e5) toast('Error leyendo credenciales: '+e5.message);
   equipo = eq || [];
   fichajes = fi || [];
+  credencialesPropias = cr || [];
+}
+
+async function cargarDatosStaffCredenciales(){
+  const { data, error } = await sb.from('credenciales').select('*, perfiles(nombre,apellido)').order('fecha', { ascending:false }).limit(300);
+  if (error) toast('Error leyendo credenciales: '+error.message);
+  credenciales = data || [];
 }
 
 async function refrescarPerfil(){
@@ -422,6 +433,7 @@ async function renderApp(){
         <button class="tab-btn active" id="stafftab-fichaje" onclick="setStaffTab('fichaje')">Fichaje</button>
         <button class="tab-btn" id="stafftab-cuotas" onclick="setStaffTab('cuotas')">Cuotas</button>
         <button class="tab-btn" id="stafftab-inventario" onclick="setStaffTab('inventario')">Inventario</button>
+        <button class="tab-btn" id="stafftab-credenciales" onclick="setStaffTab('credenciales')">Credenciales</button>
       </div>
 
       <div class="panel active" id="staffsub-fichaje">
@@ -485,6 +497,36 @@ async function renderApp(){
           <div id="staff-inventario"></div>
         </div>
       </div>
+
+      <div class="panel" id="staffsub-credenciales">
+        <div class="card">
+          <h2>Agregar credencial</h2>
+          <p class="hint">Cursos, talleres o certificaciones de cada socio (ej. SUP, iniciación náutica, RCP).</p>
+          <div class="row2">
+            <label class="field"><span>Socio</span><select id="cred-socio-select"></select></label>
+            <label class="field"><span>Credencial</span>
+              <select id="cred-tipo-select" onchange="onCambioTipoCredencial()">
+                <option value="Curso de SUP">Curso de SUP</option>
+                <option value="Taller de iniciación náutica">Taller de iniciación náutica</option>
+                <option value="Taller de RCP">Taller de RCP</option>
+                <option value="otro">Otra (escribir)</option>
+              </select>
+            </label>
+          </div>
+          <label class="field" id="cred-otro-wrap" hidden style="margin-top:10px;"><span>Nombre de la credencial</span><input type="text" id="cred-otro"/></label>
+          <div class="row2" style="margin-top:10px;">
+            <label class="field"><span>Fecha</span><input type="date" id="cred-fecha"/></label>
+            <label class="field"><span>Vence (opcional)</span><input type="date" id="cred-vencimiento"/></label>
+          </div>
+          <p class="errtext" id="cred-err"></p>
+          <button class="btn btn-primary" style="margin-top:12px;" onclick="agregarCredencial()">Agregar credencial</button>
+        </div>
+
+        <div class="card">
+          <h2>Credenciales cargadas</h2>
+          <div id="staff-credenciales"></div>
+        </div>
+      </div>
     </div>
 
     <div class="overlay" id="modal-equipo">
@@ -539,6 +581,8 @@ async function renderApp(){
     renderStaffSummary(); renderStaffBoard(); renderStaffHistory(); renderStaffInventario();
     refreshEquipoSelect('esp-embarcacion','embarcacion'); refreshEquipoSelect('esp-remo','remo'); refreshEquipoSelect('esp-chaleco','chaleco'); document.getElementById('esp-hora').value = horaMasMinutos(90);
     await cargarDatosStaffCuotas(); refrescarSelectSocios(); renderStaffVencidos(); renderPagosSinAsociar();
+    await cargarDatosStaffCredenciales(); refrescarSelectSociosCredencial(); renderStaffCredenciales();
+    document.getElementById('cred-fecha').value = fechaLocal(nowIso());
   }
   renderPushBanner();
 
@@ -549,6 +593,7 @@ async function renderApp(){
     if (esStaff){
       renderStaffSummary(); renderStaffBoard(); renderStaffHistory(); renderStaffInventario();
       await cargarDatosStaffCuotas(); refrescarSelectSocios(); renderStaffVencidos(); renderPagosSinAsociar();
+      await cargarDatosStaffCredenciales(); renderStaffCredenciales();
     }
   }, 20000);
 }
@@ -562,7 +607,7 @@ function setMainTab(which){
 let staffTabActual = 'fichaje';
 function setStaffTab(which){
   staffTabActual = which;
-  ['fichaje','cuotas','inventario'].forEach(w => {
+  ['fichaje','cuotas','inventario','credenciales'].forEach(w => {
     document.getElementById('staffsub-'+w).classList.toggle('active', w===which);
     document.getElementById('stafftab-'+w).classList.toggle('active', w===which);
   });
@@ -648,6 +693,7 @@ function renderSocioContent(){
         <button class="btn btn-danger btn-big" onclick="ficharSalida('${activo.id}', false)">FICHAR SALIDA</button>
       </div>
       ${renderHistorial()}
+      ${renderMisCredenciales()}
     `;
   } else {
     cont.innerHTML = `
@@ -665,11 +711,22 @@ function renderSocioContent(){
         <button class="btn btn-primary btn-big" style="margin-top:14px;" onclick="ficharIngreso()">FICHAR INGRESO</button>
       </div>
       ${renderHistorial()}
+      ${renderMisCredenciales()}
     `;
     refreshEquipoSelect('nf-embarcacion','embarcacion', cuotaVencida);
     refreshEquipoSelect('nf-remo','remo', cuotaVencida);
     refreshEquipoSelect('nf-chaleco','chaleco', cuotaVencida);
   }
+}
+function renderMisCredenciales(){
+  if (credencialesPropias.length === 0) return '';
+  const hoy = fechaLocal(nowIso());
+  return `<div class="card"><h2>Mis credenciales</h2>${
+    credencialesPropias.map(c => {
+      const vencida = c.vencimiento && c.vencimiento < hoy;
+      return `<div class="history-item"><span>${c.nombre}${vencida ? ' <span class="tag-esp" style="color:var(--danger);border-color:var(--danger);">vencida</span>' : ''}</span><b>${c.fecha}${c.vencimiento ? ' → vence ' + c.vencimiento : ''}</b></div>`;
+    }).join('')
+  }</div>`;
 }
 function renderHistorial(){
   const cerrados = fichajes.filter(f=>f.socio_id===session.user.id && f.estado==='cerrado').slice(0,5);
@@ -959,6 +1016,67 @@ async function cambiarEstadoEquipo(id, estado){
   await cargarDatos();
   renderStaffInventario(); renderStaffSummary(); renderStaffBoard();
   refrescarSelectsFichaje();
+}
+
+// =====================================================================
+// CREDENCIALES
+// =====================================================================
+function onCambioTipoCredencial(){
+  const v = document.getElementById('cred-tipo-select').value;
+  document.getElementById('cred-otro-wrap').hidden = v !== 'otro';
+}
+
+function refrescarSelectSociosCredencial(){
+  const sel = document.getElementById('cred-socio-select');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Elegí un socio…</option>' +
+    socios.map(s=>`<option value="${s.id}">${[s.nombre,s.apellido].filter(Boolean).join(' ')||s.dni||'Socio'}</option>`).join('');
+}
+
+function renderStaffCredenciales(){
+  const cont = document.getElementById('staff-credenciales');
+  if (!cont) return;
+  if (credenciales.length === 0){ cont.innerHTML = '<p class="empty">Todavía no se cargó ninguna credencial.</p>'; return; }
+  const hoy = fechaLocal(nowIso());
+  cont.innerHTML = credenciales.map(c => {
+    const nombreSocio = c.perfiles ? [c.perfiles.nombre, c.perfiles.apellido].filter(Boolean).join(' ') : 'Socio';
+    const vencida = c.vencimiento && c.vencimiento < hoy;
+    return `
+      <div class="board-row" style="grid-template-columns:1.2fr 1.3fr 1fr auto;">
+        <div class="board-name">${nombreSocio || 'Socio'}</div>
+        <div>${c.nombre}</div>
+        <div class="hint" style="margin:0;">${c.fecha}${c.vencimiento ? ' · vence '+c.vencimiento : ''}${vencida ? ' · <b style="color:var(--danger);">vencida</b>' : ''}</div>
+        <button class="btn btn-ghost" onclick="borrarCredencial('${c.id}')">Quitar</button>
+      </div>`;
+  }).join('');
+}
+
+async function agregarCredencial(){
+  const errEl = document.getElementById('cred-err');
+  const socioId = document.getElementById('cred-socio-select').value;
+  const tipoSel = document.getElementById('cred-tipo-select').value;
+  const nombre = tipoSel === 'otro' ? document.getElementById('cred-otro').value.trim() : tipoSel;
+  const fecha = document.getElementById('cred-fecha').value;
+  const vencimiento = document.getElementById('cred-vencimiento').value || null;
+  if (!socioId){ errEl.textContent = 'Elegí un socio.'; return; }
+  if (!nombre){ errEl.textContent = 'Falta el nombre de la credencial.'; return; }
+  if (!fecha){ errEl.textContent = 'Poné la fecha.'; return; }
+  errEl.textContent = '';
+  const { error } = await sb.from('credenciales').insert({
+    socio_id: socioId, nombre, fecha, vencimiento, registrado_por: session.user.id
+  });
+  if (error){ errEl.textContent = 'No se pudo agregar: ' + error.message; return; }
+  document.getElementById('cred-otro').value = '';
+  document.getElementById('cred-vencimiento').value = '';
+  toast('Credencial agregada.');
+  await cargarDatosStaffCredenciales(); renderStaffCredenciales();
+}
+
+async function borrarCredencial(id){
+  const { error } = await sb.from('credenciales').delete().eq('id', id);
+  if (error){ toast('No se pudo quitar: ' + error.message); return; }
+  toast('Credencial quitada.');
+  await cargarDatosStaffCredenciales(); renderStaffCredenciales();
 }
 
 // =====================================================================
