@@ -508,7 +508,9 @@ async function renderApp(){
               <select id="cred-tipo-select" onchange="onCambioTipoCredencial()">
                 <option value="Curso de SUP">Curso de SUP</option>
                 <option value="Taller de iniciación náutica">Taller de iniciación náutica</option>
+                <option value="Actualización náutica">Actualización náutica</option>
                 <option value="Taller de RCP">Taller de RCP</option>
+                <option value="Monitor">Monitor</option>
                 <option value="otro">Otra (escribir)</option>
               </select>
             </label>
@@ -518,6 +520,7 @@ async function renderApp(){
             <label class="field"><span>Fecha</span><input type="date" id="cred-fecha"/></label>
             <label class="field"><span>Vence (opcional)</span><input type="date" id="cred-vencimiento"/></label>
           </div>
+          <label class="field" style="margin-top:10px;"><span>Certificado por (opcional)</span><input type="text" id="cred-certificador" placeholder="Ej: instructor, escuela u organismo que certifica"/></label>
           <p class="errtext" id="cred-err"></p>
           <button class="btn btn-primary" style="margin-top:12px;" onclick="agregarCredencial()">Agregar credencial</button>
         </div>
@@ -724,7 +727,7 @@ function renderMisCredenciales(){
   return `<div class="card"><h2>Mis credenciales</h2>${
     credencialesPropias.map(c => {
       const vencida = c.vencimiento && c.vencimiento < hoy;
-      return `<div class="history-item"><span>${c.nombre}${vencida ? ' <span class="tag-esp" style="color:var(--danger);border-color:var(--danger);">vencida</span>' : ''}</span><b>${c.fecha}${c.vencimiento ? ' → vence ' + c.vencimiento : ''}</b></div>`;
+      return `<div class="history-item"><span>${c.nombre}${c.certificado_por ? ' <span class="hint" style="margin:0;">— '+c.certificado_por+'</span>' : ''}${vencida ? ' <span class="tag-esp" style="color:var(--danger);border-color:var(--danger);">vencida</span>' : ''}</span><b>${c.fecha}${c.vencimiento ? ' → vence ' + c.vencimiento : ''}</b></div>`;
     }).join('')
   }</div>`;
 }
@@ -1044,7 +1047,7 @@ function renderStaffCredenciales(){
     return `
       <div class="board-row" style="grid-template-columns:1.2fr 1.3fr 1fr auto;">
         <div class="board-name">${nombreSocio || 'Socio'}</div>
-        <div>${c.nombre}</div>
+        <div>${c.nombre}${c.certificado_por ? ' <span class="hint" style="margin:0;">— cert. por '+c.certificado_por+'</span>' : ''}</div>
         <div class="hint" style="margin:0;">${c.fecha}${c.vencimiento ? ' · vence '+c.vencimiento : ''}${vencida ? ' · <b style="color:var(--danger);">vencida</b>' : ''}</div>
         <button class="btn btn-ghost" onclick="borrarCredencial('${c.id}')">Quitar</button>
       </div>`;
@@ -1058,16 +1061,18 @@ async function agregarCredencial(){
   const nombre = tipoSel === 'otro' ? document.getElementById('cred-otro').value.trim() : tipoSel;
   const fecha = document.getElementById('cred-fecha').value;
   const vencimiento = document.getElementById('cred-vencimiento').value || null;
+  const certificadoPor = document.getElementById('cred-certificador').value.trim() || null;
   if (!socioId){ errEl.textContent = 'Elegí un socio.'; return; }
   if (!nombre){ errEl.textContent = 'Falta el nombre de la credencial.'; return; }
   if (!fecha){ errEl.textContent = 'Poné la fecha.'; return; }
   errEl.textContent = '';
   const { error } = await sb.from('credenciales').insert({
-    socio_id: socioId, nombre, fecha, vencimiento, registrado_por: session.user.id
+    socio_id: socioId, nombre, fecha, vencimiento, certificado_por: certificadoPor, registrado_por: session.user.id
   });
   if (error){ errEl.textContent = 'No se pudo agregar: ' + error.message; return; }
   document.getElementById('cred-otro').value = '';
   document.getElementById('cred-vencimiento').value = '';
+  document.getElementById('cred-certificador').value = '';
   toast('Credencial agregada.');
   await cargarDatosStaffCredenciales(); renderStaffCredenciales();
 }
