@@ -184,6 +184,7 @@ let socios = [];
 let pagosSinAsociar = [];
 let credencialesPropias = [];
 let credenciales = [];
+let modoRecuperarPassword = false;
 
 function pad(n){ return String(n).padStart(2,'0'); }
 function fmtHora(iso){ const d = new Date(iso); return pad(d.getHours())+':'+pad(d.getMinutes()); }
@@ -205,6 +206,7 @@ async function boot(){
   session = data.session;
   sb.auth.onAuthStateChange((_event, s) => {
     session = s;
+    if (_event === 'PASSWORD_RECOVERY') modoRecuperarPassword = true;
     render();
   });
   await render();
@@ -212,6 +214,10 @@ async function boot(){
 
 async function render(){
   if (pollTimer){ clearInterval(pollTimer); pollTimer = null; }
+  if (modoRecuperarPassword){
+    renderNuevaPassword();
+    return;
+  }
   if (!session){
     renderAuth();
     return;
@@ -248,6 +254,15 @@ function renderAuth(){
         <label class="field"><span>Contraseña</span><input type="password" id="li-pass"/></label>
         <p class="errtext" id="li-err"></p>
         <button class="btn btn-primary btn-big" onclick="hacerLogin()">Ingresar</button>
+        <button class="btn btn-ghost" style="margin-top:2px;" onclick="mostrarRecuperar()">¿Olvidaste tu contraseña?</button>
+      </div>
+
+      <div id="auth-recuperar" class="stack" hidden>
+        <p class="hint" style="margin:0;">Ingresá tu email y te mandamos un link para elegir una contraseña nueva.</p>
+        <label class="field"><span>Email</span><input type="email" id="rec-email"/></label>
+        <p class="errtext" id="rec-err"></p>
+        <button class="btn btn-primary btn-big" onclick="enviarRecuperar()">Enviar link</button>
+        <button class="btn btn-ghost" style="margin-top:2px;" onclick="ocultarRecuperar()">Volver a ingresar</button>
       </div>
 
       <div id="auth-signup" class="stack" hidden>
@@ -261,10 +276,62 @@ function renderAuth(){
   `;
 }
 function setAuthTab(which){
+  ocultarRecuperar();
   document.getElementById('auth-login').hidden = which!=='login';
   document.getElementById('auth-signup').hidden = which!=='signup';
   document.getElementById('authtab-login').classList.toggle('active', which==='login');
   document.getElementById('authtab-signup').classList.toggle('active', which==='signup');
+}
+function mostrarRecuperar(){
+  document.getElementById('auth-login').hidden = true;
+  document.getElementById('auth-recuperar').hidden = false;
+  document.getElementById('rec-email').value = document.getElementById('li-email').value.trim();
+}
+function ocultarRecuperar(){
+  document.getElementById('auth-recuperar').hidden = true;
+  document.getElementById('auth-login').hidden = false;
+}
+async function enviarRecuperar(){
+  const email = document.getElementById('rec-email').value.trim();
+  const errEl = document.getElementById('rec-err');
+  errEl.textContent = '';
+  if (!email){ errEl.textContent = 'Poné tu email.'; return; }
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+  if (error){ errEl.textContent = traducirError(error.message); return; }
+  toast('Te mandamos un email con el link para elegir una contraseña nueva.');
+  ocultarRecuperar();
+}
+function renderNuevaPassword(){
+  root().innerHTML = `
+    <div class="top" style="justify-content:center;">
+      <div class="brand">
+        <img class="logo-mark" src="kosten-wordmark.png" alt="Fundación Kosten">
+        <span class="suffix">Socios</span>
+      </div>
+    </div>
+    <div class="card center-card">
+      <h2 style="margin-top:0;">Elegí tu nueva contraseña</h2>
+      <div class="stack">
+        <label class="field"><span>Contraseña nueva (mínimo 6 caracteres)</span><input type="password" id="np-pass"/></label>
+        <label class="field"><span>Repetila</span><input type="password" id="np-pass2"/></label>
+        <p class="errtext" id="np-err"></p>
+        <button class="btn btn-primary btn-big" onclick="guardarNuevaPassword()">Guardar contraseña</button>
+      </div>
+    </div>
+  `;
+}
+async function guardarNuevaPassword(){
+  const pass = document.getElementById('np-pass').value;
+  const pass2 = document.getElementById('np-pass2').value;
+  const errEl = document.getElementById('np-err');
+  errEl.textContent = '';
+  if (pass.length < 6){ errEl.textContent = 'La contraseña necesita al menos 6 caracteres.'; return; }
+  if (pass !== pass2){ errEl.textContent = 'Las dos contraseñas no coinciden.'; return; }
+  const { error } = await sb.auth.updateUser({ password: pass });
+  if (error){ errEl.textContent = traducirError(error.message); return; }
+  modoRecuperarPassword = false;
+  toast('Contraseña actualizada.');
+  await render();
 }
 async function hacerLogin(){
   const email = document.getElementById('li-email').value.trim();
