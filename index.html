@@ -223,6 +223,11 @@ function direccionViento(deg){
   const dirs = ['N','NE','E','SE','S','SO','O','NO'];
   return dirs[Math.round(deg/45) % 8];
 }
+// Flecha apuntando hacia donde SOPLA el viento (el dato de la API es de
+// dónde VIENE, así que se gira 180° para que la flecha sea intuitiva).
+function flechaViento(deg){
+  return `<span style="display:inline-block;transform:rotate(${(deg+180)%360}deg);">↑</span>`;
+}
 function iniciarClima(){
   if (climaTimer) return;
   cargarClima();
@@ -230,31 +235,63 @@ function iniciarClima(){
 }
 async function cargarClima(){
   try{
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${CLIMA_LAT}&longitude=${CLIMA_LON}&current=temperature_2m,wind_speed_10m,wind_direction_10m,weather_code&wind_speed_unit=kmh&timezone=auto`;
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${CLIMA_LAT}&longitude=${CLIMA_LON}&hourly=temperature_2m,wind_speed_10m,wind_direction_10m,weather_code&wind_speed_unit=kmh&forecast_days=2&timezone=auto`;
     const resp = await fetch(url);
     if (!resp.ok) throw new Error('status ' + resp.status);
     const data = await resp.json();
-    climaData = data.current || null;
+    const h = data.hourly;
+    const ahora = new Date();
+    let idx = h.time.findIndex(t => new Date(t) >= ahora);
+    if (idx < 0) idx = 0;
+    const paso = 3; // horas entre cada franja del pronóstico
+    const cantidad = 4; // "ahora" + 3 franjas más = próximas ~9 horas
+    const horas = [];
+    for (let i = 0; i < cantidad; i++){
+      const j = idx + i*paso;
+      if (j >= h.time.length) break;
+      horas.push({
+        etiqueta: i===0 ? 'Ahora' : pad(new Date(h.time[j]).getHours())+'hs',
+        temp: h.temperature_2m[j],
+        viento: h.wind_speed_10m[j],
+        dir: h.wind_direction_10m[j],
+        code: h.weather_code[j],
+      });
+    }
+    climaData = { horas };
   } catch(e){
     console.error('No se pudo cargar el clima:', e);
+    climaData = null;
   }
   actualizarClimaDOM();
+}
+function franjaClimaHtml(f){
+  return `
+    <div style="flex:1;min-width:78px;text-align:center;background:var(--surface-2);border-radius:10px;padding:10px 6px;">
+      <div class="hint" style="margin:0 0 4px;">${f.etiqueta}</div>
+      <div style="font-size:1.3rem;line-height:1;">${descripcionClima(f.code).split(' ')[0]}</div>
+      <div style="margin:4px 0;"><b>${Math.round(f.temp)}°C</b></div>
+      <div class="hint" style="margin:0;">${flechaViento(f.dir)} ${Math.round(f.viento)} km/h ${direccionViento(f.dir)}</div>
+    </div>`;
 }
 function actualizarClimaDOM(){
   const el = document.getElementById('clima-resumen');
   if (!el) return;
-  if (!climaData){ el.textContent = 'No se pudo cargar el clima ahora.'; return; }
-  el.innerHTML = `${descripcionClima(climaData.weather_code)} · <b>${Math.round(climaData.temperature_2m)}°C</b> · viento ${Math.round(climaData.wind_speed_10m)} km/h ${direccionViento(climaData.wind_direction_10m)}`;
+  if (!climaData || !climaData.horas || climaData.horas.length === 0){
+    el.innerHTML = 'No se pudo cargar el clima ahora.';
+    return;
+  }
+  el.innerHTML = `<div style="display:flex;gap:8px;flex-wrap:wrap;">${climaData.horas.map(franjaClimaHtml).join('')}</div>`;
 }
 function renderClimaCard(){
-  const resumen = climaData
-    ? `${descripcionClima(climaData.weather_code)} · <b>${Math.round(climaData.temperature_2m)}°C</b> · viento ${Math.round(climaData.wind_speed_10m)} km/h ${direccionViento(climaData.wind_direction_10m)}`
+  const contenido = (climaData && climaData.horas && climaData.horas.length > 0)
+    ? `<div style="display:flex;gap:8px;flex-wrap:wrap;">${climaData.horas.map(franjaClimaHtml).join('')}</div>`
     : 'Cargando clima…';
   return `
     <div class="card">
       <h2 style="margin-bottom:2px;">Clima y mareas</h2>
-      <p class="hint" id="clima-resumen" style="margin:0 0 12px;">${resumen}</p>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <p class="hint" style="margin:0 0 12px;">Próximas horas — viento en km/h, flecha = hacia dónde sopla.</p>
+      <div id="clima-resumen">${contenido}</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;">
         <a class="btn btn-ghost" style="text-decoration:none;" href="${WINDGURU_URL}" target="_blank" rel="noopener">Pronóstico completo en Windguru →</a>
         <a class="btn btn-ghost" style="text-decoration:none;" href="${WISUKI_TIDE_URL}" target="_blank" rel="noopener">Tabla de mareas en Wisuki →</a>
       </div>
