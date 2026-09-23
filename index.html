@@ -185,6 +185,10 @@ let pagosSinAsociar = [];
 let credencialesPropias = [];
 let credenciales = [];
 let modoRecuperarPassword = false;
+let anuncios = [];
+let bitacoraEditando = null;
+let bitacoraNuevoAbierto = false;
+const UMBRAL_VIENTO_ALERTA_KMH = 40;
 let climaData = null;
 let climaTimer = null;
 
@@ -274,6 +278,8 @@ function franjaClimaHtml(f){
     </div>`;
 }
 function actualizarClimaDOM(){
+  const elAlerta = document.getElementById('clima-alerta');
+  if (elAlerta) elAlerta.innerHTML = alertaVientoHtml();
   const el = document.getElementById('clima-resumen');
   if (!el) return;
   if (!climaData || !climaData.horas || climaData.horas.length === 0){
@@ -281,6 +287,12 @@ function actualizarClimaDOM(){
     return;
   }
   el.innerHTML = `<div style="display:flex;gap:8px;flex-wrap:wrap;">${climaData.horas.map(franjaClimaHtml).join('')}</div>`;
+}
+function alertaVientoHtml(){
+  if (!climaData || !climaData.horas || climaData.horas.length === 0) return '';
+  const ahora = climaData.horas[0];
+  if (Math.round(ahora.viento) < UMBRAL_VIENTO_ALERTA_KMH) return '';
+  return `<div class="message msg-danger" style="margin:0 0 12px;">⚠️ Viento fuerte ahora mismo (${Math.round(ahora.viento)} km/h ${direccionViento(ahora.dir)}) — evaluá bien las condiciones antes de salir.</div>`;
 }
 function renderClimaCard(){
   const contenido = (climaData && climaData.horas && climaData.horas.length > 0)
@@ -290,6 +302,7 @@ function renderClimaCard(){
     <div class="card">
       <h2 style="margin-bottom:2px;">Clima y mareas</h2>
       <p class="hint" style="margin:0 0 12px;">Próximas horas — viento en km/h, flecha = hacia dónde sopla.</p>
+      <div id="clima-alerta">${alertaVientoHtml()}</div>
       <div id="clima-resumen">${contenido}</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;">
         <a class="btn btn-ghost" style="text-decoration:none;" href="${WINDGURU_URL}" target="_blank" rel="noopener">Pronóstico completo en Windguru →</a>
@@ -581,6 +594,7 @@ async function renderApp(){
       </div>
       <div style="display:flex;align-items:center;gap:10px;">
         <span class="hello">Hola, <b>${perfil.nombre}</b></span>
+        <button class="btn btn-ghost" style="padding:8px 12px;" onclick="abrirModalCarnet()" title="Mi carnet">🪪</button>
         <button class="signout" onclick="cerrarSesion()">Salir</button>
       </div>
     </div>
@@ -592,7 +606,29 @@ async function renderApp(){
     </div>
 
     <div class="panel active" id="panel-socio">
-      <div id="socio-content"></div>
+      <div class="tabs" id="socio-tabs">
+        <button class="tab-btn active" id="sociotab-fichaje" onclick="setSocioTab('fichaje')">Fichaje</button>
+        <button class="tab-btn" id="sociotab-bitacora" onclick="setSocioTab('bitacora')">Bitácora</button>
+        <button class="tab-btn" id="sociotab-anuncios" onclick="setSocioTab('anuncios')">Anuncios</button>
+        <button class="tab-btn" id="sociotab-cuota" onclick="setSocioTab('cuota')">Mi cuota</button>
+        <button class="tab-btn" id="sociotab-certificados" onclick="setSocioTab('certificados')">Mis certificados</button>
+      </div>
+
+      <div class="panel active" id="sociosub-fichaje">
+        <div id="socio-content"></div>
+      </div>
+      <div class="panel" id="sociosub-bitacora">
+        <div id="socio-bitacora"></div>
+      </div>
+      <div class="panel" id="sociosub-anuncios">
+        <div id="socio-anuncios"></div>
+      </div>
+      <div class="panel" id="sociosub-cuota">
+        <div class="card"><h2>Mi cuota</h2><p class="hint">¡Próximamente! No seas impaciente cheee 😄</p></div>
+      </div>
+      <div class="panel" id="sociosub-certificados">
+        <div class="card"><h2>Mis certificados</h2><p class="hint">¡Próximamente! No seas impaciente cheee 😄</p></div>
+      </div>
     </div>
 
     <div class="panel" id="panel-staff">
@@ -601,6 +637,7 @@ async function renderApp(){
         <button class="tab-btn" id="stafftab-cuotas" onclick="setStaffTab('cuotas')">Cuotas</button>
         <button class="tab-btn" id="stafftab-inventario" onclick="setStaffTab('inventario')">Inventario</button>
         <button class="tab-btn" id="stafftab-credenciales" onclick="setStaffTab('credenciales')">Credenciales</button>
+        <button class="tab-btn" id="stafftab-anuncios" onclick="setStaffTab('anuncios')">Anuncios</button>
       </div>
 
       <div class="panel active" id="staffsub-fichaje">
@@ -697,6 +734,34 @@ async function renderApp(){
           <div id="staff-credenciales"></div>
         </div>
       </div>
+
+      <div class="panel" id="staffsub-anuncios">
+        <div class="card">
+          <h2>Publicar anuncio</h2>
+          <p class="hint">Se muestra a todos los socios (y les llega una notificación) hasta el día que elijas — después se borra solo.</p>
+          <label class="field"><span>Título</span><input type="text" id="an-titulo" placeholder="Ej: Clase de revalidación"/></label>
+          <label class="field" style="margin-top:10px;"><span>Detalle</span><textarea id="an-cuerpo" rows="3" style="width:100%;font-family:inherit;font-size:0.95rem;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);"></textarea></label>
+          <label class="field" style="margin-top:10px;"><span>Mostrar hasta</span><input type="date" id="an-vigencia"/></label>
+          <p class="errtext" id="an-err"></p>
+          <button class="btn btn-primary" style="margin-top:12px;" onclick="agregarAnuncio()">Publicar (envía notificación)</button>
+        </div>
+        <div class="card">
+          <h2>Anuncios vigentes</h2>
+          <div id="staff-anuncios"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="overlay" id="modal-carnet">
+      <div class="modal" style="text-align:center;">
+        <h3>Mi carnet</h3>
+        <p style="margin:0 0 4px;font-size:1.1rem;"><b>${perfil.nombre} ${perfil.apellido||''}</b></p>
+        <p class="hint" style="margin:0 0 14px;">Socio N.° <b style="color:var(--ink);">${perfil.numero_socio ?? '—'}</b></p>
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent('KOSTEN-'+(perfil.numero_socio ?? perfil.id))}" width="220" height="220" alt="Código QR de socio" style="border-radius:12px;background:#fff;padding:10px;"/>
+        <div class="modal-actions" style="justify-content:center;margin-top:14px;">
+          <button class="btn btn-ghost" onclick="closeModal('modal-carnet')">Cerrar</button>
+        </div>
+      </div>
     </div>
 
     <div class="overlay" id="modal-equipo">
@@ -747,12 +812,16 @@ async function renderApp(){
     </div>
   `;
   renderSocioContent();
+  await cargarAnuncios();
+  renderAnunciosSocio();
   if (esStaff){
     renderStaffSummary(); renderStaffBoard(); renderStaffHistory(); renderStaffInventario();
     refreshEquipoSelect('esp-embarcacion','embarcacion'); refreshEquipoSelect('esp-remo','remo'); refreshEquipoSelect('esp-chaleco','chaleco'); document.getElementById('esp-hora').value = horaMasMinutos(90);
     await cargarDatosStaffCuotas(); refrescarSelectSocios(); renderStaffVencidos(); renderPagosSinAsociar();
     await cargarDatosStaffCredenciales(); refrescarSelectSociosCredencial(); renderStaffCredenciales();
     document.getElementById('cred-fecha').value = fechaLocal(nowIso());
+    document.getElementById('an-vigencia').value = fechaLocal(nowIso());
+    renderStaffAnuncios();
   }
   renderPushBanner();
 
@@ -760,10 +829,14 @@ async function renderApp(){
     await refrescarPerfil();
     await cargarDatos();
     renderSocioContent();
+    if (socioTabActual === 'bitacora') renderBitacora();
+    await cargarAnuncios();
+    renderAnunciosSocio();
     if (esStaff){
       renderStaffSummary(); renderStaffBoard(); renderStaffHistory(); renderStaffInventario();
       await cargarDatosStaffCuotas(); refrescarSelectSocios(); renderStaffVencidos(); renderPagosSinAsociar();
       await cargarDatosStaffCredenciales(); renderStaffCredenciales();
+      renderStaffAnuncios();
     }
   }, 20000);
 }
@@ -777,11 +850,22 @@ function setMainTab(which){
 let staffTabActual = 'fichaje';
 function setStaffTab(which){
   staffTabActual = which;
-  ['fichaje','cuotas','inventario','credenciales'].forEach(w => {
+  ['fichaje','cuotas','inventario','credenciales','anuncios'].forEach(w => {
     document.getElementById('staffsub-'+w).classList.toggle('active', w===which);
     document.getElementById('stafftab-'+w).classList.toggle('active', w===which);
   });
 }
+let socioTabActual = 'fichaje';
+function setSocioTab(which){
+  socioTabActual = which;
+  ['fichaje','bitacora','anuncios','cuota','certificados'].forEach(w => {
+    document.getElementById('sociosub-'+w).classList.toggle('active', w===which);
+    document.getElementById('sociotab-'+w).classList.toggle('active', w===which);
+  });
+  if (which === 'bitacora') renderBitacora();
+  if (which === 'anuncios') renderAnunciosSocio();
+}
+function abrirModalCarnet(){ openModal('modal-carnet'); }
 let invTabActual = 'kayak';
 function setInvTab(cat){
   invTabActual = cat;
@@ -1252,6 +1336,200 @@ async function borrarCredencial(id){
   if (error){ toast('No se pudo quitar: ' + error.message); return; }
   toast('Credencial quitada.');
   await cargarDatosStaffCredenciales(); renderStaffCredenciales();
+}
+
+// =====================================================================
+// ANUNCIOS / NOVEDADES
+// =====================================================================
+async function cargarAnuncios(){
+  const { data, error } = await sb.from('anuncios').select('*').order('created_at', { ascending:false });
+  if (error){ console.error('Error leyendo anuncios:', error.message); return; }
+  anuncios = data || [];
+}
+function renderAnunciosSocio(){
+  const cont = document.getElementById('socio-anuncios');
+  if (!cont) return;
+  if (anuncios.length === 0){ cont.innerHTML = '<p class="empty">No hay anuncios por ahora.</p>'; return; }
+  cont.innerHTML = anuncios.map(a => `
+    <div class="card">
+      <h2 style="margin-bottom:2px;">${a.titulo}</h2>
+      <p style="white-space:pre-wrap;margin:0 0 8px;">${a.cuerpo}</p>
+      <p class="hint" style="margin:0;">Vigente hasta el ${a.fecha_vigencia_hasta}</p>
+    </div>`).join('');
+}
+function renderStaffAnuncios(){
+  const cont = document.getElementById('staff-anuncios');
+  if (!cont) return;
+  if (anuncios.length === 0){ cont.innerHTML = '<p class="empty">No hay anuncios cargados.</p>'; return; }
+  cont.innerHTML = anuncios.map(a => `
+    <div class="board-row" style="grid-template-columns:1.6fr 1fr auto;">
+      <div>
+        <div class="board-name">${a.titulo}</div>
+        <div class="hint" style="margin:2px 0 0;">${a.cuerpo}</div>
+      </div>
+      <div class="hint" style="margin:0;">Hasta ${a.fecha_vigencia_hasta}</div>
+      <button class="btn btn-ghost" onclick="borrarAnuncioManual('${a.id}')">Quitar</button>
+    </div>`).join('');
+}
+async function agregarAnuncio(){
+  const errEl = document.getElementById('an-err');
+  const titulo = document.getElementById('an-titulo').value.trim();
+  const cuerpo = document.getElementById('an-cuerpo').value.trim();
+  const vigencia = document.getElementById('an-vigencia').value;
+  errEl.textContent = '';
+  if (!titulo){ errEl.textContent = 'Poné un título.'; return; }
+  if (!cuerpo){ errEl.textContent = 'Poné el detalle del anuncio.'; return; }
+  if (!vigencia){ errEl.textContent = 'Elegí hasta cuándo se muestra.'; return; }
+  const { error } = await sb.from('anuncios').insert({
+    titulo, cuerpo, fecha_vigencia_hasta: vigencia, creado_por: session.user.id
+  });
+  if (error){ errEl.textContent = 'No se pudo publicar: ' + error.message; return; }
+  document.getElementById('an-titulo').value = '';
+  document.getElementById('an-cuerpo').value = '';
+  document.getElementById('an-vigencia').value = fechaLocal(nowIso());
+  toast('Anuncio publicado — se les avisa a los socios.');
+  await cargarAnuncios(); renderStaffAnuncios(); renderAnunciosSocio();
+}
+async function borrarAnuncioManual(id){
+  const { error } = await sb.from('anuncios').delete().eq('id', id);
+  if (error){ toast('No se pudo quitar: ' + error.message); return; }
+  toast('Anuncio quitado.');
+  await cargarAnuncios(); renderStaffAnuncios(); renderAnunciosSocio();
+}
+
+// =====================================================================
+// BITÁCORA (historial personal editable del socio)
+// =====================================================================
+function datetimeLocalDeIso(iso){
+  if (!iso) return '';
+  const d = new Date(iso);
+  const local = new Date(d.getTime() - d.getTimezoneOffset()*60000);
+  return local.toISOString().slice(0,16);
+}
+function isoDeDatetimeLocal(valor){
+  if (!valor) return null;
+  return new Date(valor).toISOString();
+}
+function renderBitacora(){
+  const cont = document.getElementById('socio-bitacora');
+  if (!cont) return;
+  const propios = fichajes
+    .filter(f => f.socio_id === session.user.id)
+    .sort((a,b) => new Date(b.hora_ingreso) - new Date(a.hora_ingreso));
+
+  const formNuevo = bitacoraNuevoAbierto ? `
+    <div class="card" style="border-color:var(--accent);">
+      <h2>Cargar ingreso pasado</h2>
+      <p class="hint">Para dejar registrado un ingreso que no fichaste en su momento.</p>
+      <div class="row2">
+        <label class="field"><span>Entrada</span><input type="datetime-local" id="bit-nuevo-ingreso"/></label>
+        <label class="field"><span>Salida</span><input type="datetime-local" id="bit-nuevo-salida"/></label>
+      </div>
+      <label class="field" style="margin-top:10px;"><span>Nota (opcional)</span><input type="text" id="bit-nuevo-nota" placeholder="Ej: salida grupal, se olvidó fichar"/></label>
+      <p class="errtext" id="bit-nuevo-err"></p>
+      <div class="modal-actions" style="margin-top:12px;">
+        <button class="btn btn-ghost" onclick="cancelarNuevoRegistroBitacora()">Cancelar</button>
+        <button class="btn btn-primary" onclick="guardarNuevoRegistroBitacora()">Guardar</button>
+      </div>
+    </div>` : `
+    <button class="btn btn-ghost" onclick="abrirNuevoRegistroBitacora()">+ Cargar ingreso pasado</button>`;
+
+  if (propios.length === 0){
+    cont.innerHTML = formNuevo + '<p class="empty">Todavía no tenés ingresos registrados.</p>';
+    return;
+  }
+
+  cont.innerHTML = formNuevo + propios.map(f => {
+    if (bitacoraEditando === f.id){
+      return `
+        <div class="card" style="border-color:var(--accent);">
+          <div class="row2">
+            <label class="field"><span>Entrada</span><input type="datetime-local" id="bit-edit-ingreso-${f.id}" value="${datetimeLocalDeIso(f.hora_ingreso)}"/></label>
+            <label class="field"><span>Salida</span><input type="datetime-local" id="bit-edit-salida-${f.id}" value="${datetimeLocalDeIso(f.hora_salida_real)}" ${f.estado==='en_agua' ? 'disabled' : ''}/></label>
+          </div>
+          <label class="field" style="margin-top:10px;"><span>Nota</span><input type="text" id="bit-edit-nota-${f.id}" value="${f.nota ? f.nota.replace(/"/g,'&quot;') : ''}"/></label>
+          <p class="errtext" id="bit-edit-err-${f.id}"></p>
+          <div class="modal-actions" style="margin-top:12px;">
+            <button class="btn btn-ghost" onclick="cancelarEdicionBitacora()">Cancelar</button>
+            <button class="btn btn-primary" onclick="guardarBitacora('${f.id}')">Guardar</button>
+          </div>
+        </div>`;
+    }
+    const rango = f.estado === 'en_agua'
+      ? fmtHora(f.hora_ingreso) + ' → en el agua'
+      : fmtHora(f.hora_ingreso) + ' → ' + (f.hora_salida_real ? fmtHora(f.hora_salida_real) : '—');
+    return `
+      <div class="history-item">
+        <span>${fechaLocal(f.hora_ingreso)} · ${rango}${f.cargado_manual ? ' <span class="hint" style="margin:0;">(cargado a mano)</span>' : ''}${f.nota ? '<br><span class="hint" style="margin:0;">📝 '+f.nota+'</span>' : ''}</span>
+        <button class="btn btn-ghost" ${f.estado==='en_agua' ? 'disabled title="No se puede editar un fichaje activo"' : ''} onclick="editarBitacora('${f.id}')">Editar</button>
+      </div>`;
+  }).join('');
+}
+function abrirNuevoRegistroBitacora(){
+  bitacoraNuevoAbierto = true;
+  bitacoraEditando = null;
+  renderBitacora();
+}
+function cancelarNuevoRegistroBitacora(){
+  bitacoraNuevoAbierto = false;
+  renderBitacora();
+}
+async function guardarNuevoRegistroBitacora(){
+  const errEl = document.getElementById('bit-nuevo-err');
+  const ingreso = document.getElementById('bit-nuevo-ingreso').value;
+  const salida = document.getElementById('bit-nuevo-salida').value;
+  const nota = document.getElementById('bit-nuevo-nota').value.trim() || null;
+  errEl.textContent = '';
+  if (!ingreso || !salida){ errEl.textContent = 'Completá entrada y salida.'; return; }
+  const ingresoIso = isoDeDatetimeLocal(ingreso);
+  const salidaIso = isoDeDatetimeLocal(salida);
+  if (new Date(salidaIso) <= new Date(ingresoIso)){ errEl.textContent = 'La salida tiene que ser después de la entrada.'; return; }
+  const { error } = await sb.from('fichajes').insert({
+    socio_id: session.user.id,
+    es_esporadico: false,
+    hora_ingreso: ingresoIso,
+    hora_estimada_salida: salidaIso,
+    hora_salida_real: salidaIso,
+    marcado_por: 'socio',
+    estado: 'cerrado',
+    cargado_manual: true,
+    nota,
+  });
+  if (error){ errEl.textContent = 'No se pudo guardar: ' + error.message; return; }
+  bitacoraNuevoAbierto = false;
+  toast('Registro agregado a tu bitácora.');
+  await cargarDatos(); renderBitacora();
+}
+function editarBitacora(id){
+  bitacoraEditando = id;
+  bitacoraNuevoAbierto = false;
+  renderBitacora();
+}
+function cancelarEdicionBitacora(){
+  bitacoraEditando = null;
+  renderBitacora();
+}
+async function guardarBitacora(id){
+  const errEl = document.getElementById('bit-edit-err-'+id);
+  const ingreso = document.getElementById('bit-edit-ingreso-'+id).value;
+  const salidaEl = document.getElementById('bit-edit-salida-'+id);
+  const salida = salidaEl.value;
+  const nota = document.getElementById('bit-edit-nota-'+id).value.trim() || null;
+  errEl.textContent = '';
+  if (!ingreso){ errEl.textContent = 'Falta la fecha/hora de entrada.'; return; }
+  const payload = { hora_ingreso: isoDeDatetimeLocal(ingreso), nota };
+  if (!salidaEl.disabled && salida){
+    if (new Date(isoDeDatetimeLocal(salida)) <= new Date(payload.hora_ingreso)){
+      errEl.textContent = 'La salida tiene que ser después de la entrada.';
+      return;
+    }
+    payload.hora_salida_real = isoDeDatetimeLocal(salida);
+  }
+  const { error } = await sb.from('fichajes').update(payload).eq('id', id);
+  if (error){ errEl.textContent = 'No se pudo guardar: ' + error.message; return; }
+  bitacoraEditando = null;
+  toast('Bitácora actualizada.');
+  await cargarDatos(); renderBitacora();
 }
 
 // =====================================================================
