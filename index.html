@@ -753,13 +753,24 @@ async function renderApp(){
     </div>
 
     <div class="overlay" id="modal-carnet">
-      <div class="modal" style="text-align:center;">
-        <h3>Mi carnet</h3>
-        <p style="margin:0 0 4px;font-size:1.1rem;"><b>${perfil.nombre} ${perfil.apellido||''}</b></p>
-        <p class="hint" style="margin:0 0 14px;">Socio N.° <b style="color:var(--ink);">${perfil.numero_socio ?? '—'}</b></p>
-        <img src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent('KOSTEN-'+(perfil.numero_socio ?? perfil.id))}" width="220" height="220" alt="Código QR de socio" style="border-radius:12px;background:#fff;padding:10px;"/>
-        <div class="modal-actions" style="justify-content:center;margin-top:14px;">
+      <div class="modal">
+        <h3 style="text-align:center;">Mi carnet</h3>
+        <div style="text-align:center;">
+          <p style="margin:0 0 4px;font-size:1.1rem;"><b>${perfil.nombre} ${perfil.apellido||''}</b></p>
+          <p class="hint" style="margin:0 0 14px;">Socio N.° <b style="color:var(--ink);">${perfil.numero_socio ?? '—'}</b></p>
+          <img src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent('KOSTEN-'+(perfil.numero_socio ?? perfil.id))}" width="220" height="220" alt="Código QR de socio" style="border-radius:12px;background:#fff;padding:10px;"/>
+        </div>
+        <div class="stack" style="margin-top:16px;">
+          <label class="field"><span>DNI</span><input type="text" value="${perfil.dni||''}" disabled/></label>
+          <label class="field"><span>Email</span><input type="text" value="${perfil.email||''}" disabled/></label>
+          <label class="field"><span>Teléfono</span><input type="text" id="carnet-telefono" value="${perfil.telefono||''}"/></label>
+          <label class="field"><span>Contacto de emergencia</span><input type="text" id="carnet-contacto-emergencia" value="${perfil.contacto_emergencia||''}"/></label>
+        </div>
+        <p class="hint" style="margin:8px 0 0;">El nombre, el DNI y el email no se pueden modificar. Si hay un error en esos datos, avisale a staff/comisión.</p>
+        <p class="errtext" id="carnet-err"></p>
+        <div class="modal-actions" style="margin-top:12px;">
           <button class="btn btn-ghost" onclick="closeModal('modal-carnet')">Cerrar</button>
+          <button class="btn btn-primary" onclick="guardarCarnet()">Guardar cambios</button>
         </div>
       </div>
     </div>
@@ -873,6 +884,18 @@ function renderCertificadosTab(){
   if (cont) cont.innerHTML = renderMisCredenciales();
 }
 function abrirModalCarnet(){ openModal('modal-carnet'); }
+async function guardarCarnet(){
+  const errEl = document.getElementById('carnet-err');
+  const telefono = document.getElementById('carnet-telefono').value.trim();
+  const contacto_emergencia = document.getElementById('carnet-contacto-emergencia').value.trim();
+  errEl.textContent = '';
+  const { error } = await sb.from('perfiles').update({ telefono, contacto_emergencia }).eq('id', session.user.id);
+  if (error){ errEl.textContent = 'No se pudo guardar: ' + error.message; return; }
+  perfil.telefono = telefono;
+  perfil.contacto_emergencia = contacto_emergencia;
+  toast('Tus datos se actualizaron.');
+  closeModal('modal-carnet');
+}
 let invTabActual = 'kayak';
 function setInvTab(cat){
   invTabActual = cat;
