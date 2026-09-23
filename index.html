@@ -627,7 +627,7 @@ async function renderApp(){
         <div class="card"><h2>Mi cuota</h2><p class="hint">¡Próximamente! No seas impaciente cheee 😄</p></div>
       </div>
       <div class="panel" id="sociosub-certificados">
-        <div class="card"><h2>Mis certificados</h2><p class="hint">¡Próximamente! No seas impaciente cheee 😄</p></div>
+        <div id="socio-certificados"></div>
       </div>
     </div>
 
@@ -812,6 +812,7 @@ async function renderApp(){
     </div>
   `;
   renderSocioContent();
+  renderCertificadosTab();
   await cargarAnuncios();
   renderAnunciosSocio();
   if (esStaff){
@@ -829,6 +830,7 @@ async function renderApp(){
     await refrescarPerfil();
     await cargarDatos();
     renderSocioContent();
+    renderCertificadosTab();
     if (socioTabActual === 'bitacora') renderBitacora();
     await cargarAnuncios();
     renderAnunciosSocio();
@@ -864,6 +866,11 @@ function setSocioTab(which){
   });
   if (which === 'bitacora') renderBitacora();
   if (which === 'anuncios') renderAnunciosSocio();
+  if (which === 'certificados') renderCertificadosTab();
+}
+function renderCertificadosTab(){
+  const cont = document.getElementById('socio-certificados');
+  if (cont) cont.innerHTML = renderMisCredenciales();
 }
 function abrirModalCarnet(){ openModal('modal-carnet'); }
 let invTabActual = 'kayak';
@@ -949,7 +956,6 @@ function renderSocioContent(){
         <button class="btn btn-danger btn-big" onclick="ficharSalida('${activo.id}', false)">FICHAR SALIDA</button>
       </div>
       ${renderHistorial()}
-      ${renderMisCredenciales()}
     `;
   } else {
     cont.innerHTML = `
@@ -968,7 +974,6 @@ function renderSocioContent(){
         <button class="btn btn-primary btn-big" style="margin-top:14px;" onclick="ficharIngreso()">FICHAR INGRESO</button>
       </div>
       ${renderHistorial()}
-      ${renderMisCredenciales()}
     `;
     refreshEquipoSelect('nf-embarcacion','embarcacion', cuotaVencida);
     refreshEquipoSelect('nf-remo','remo', cuotaVencida);
@@ -976,9 +981,11 @@ function renderSocioContent(){
   }
 }
 function renderMisCredenciales(){
-  if (credencialesPropias.length === 0) return '';
+  if (credencialesPropias.length === 0){
+    return '<div class="card"><h2>Mis certificados</h2><p class="hint" style="margin:0;">¡Todavía no tenés ningún certificado! Estate atento a las novedades para enterarte cuándo conseguirlos 😉</p></div>';
+  }
   const hoy = fechaLocal(nowIso());
-  return `<div class="card"><h2>Mis credenciales</h2>${
+  return `<div class="card"><h2>Mis certificados</h2>${
     credencialesPropias.map(c => {
       const vencida = c.vencimiento && c.vencimiento < hoy;
       return `<div class="history-item"><span>${c.nombre}${c.certificado_por ? ' <span class="hint" style="margin:0;">— '+c.certificado_por+'</span>' : ''}${vencida ? ' <span class="tag-esp" style="color:var(--danger);border-color:var(--danger);">vencida</span>' : ''}</span><b>${c.fecha}${c.vencimiento ? ' → vence ' + c.vencimiento : ''}</b></div>`;
