@@ -1,25 +1,1738 @@
-{
-  "name": "Fundación Kosten",
-  "short_name": "Kosten",
-  "description": "Fundación Kosten — registro de adherentes y fichaje de ingreso/salida al agua.",
-  "start_url": "./index.html",
-  "scope": "./",
-  "display": "standalone",
-  "background_color": "#0B1416",
-  "theme_color": "#0E6E77",
-  "orientation": "portrait-primary",
-  "icons": [
-    {
-      "src": "icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fundación Kosten</title>
+<meta name="theme-color" content="#0E6E77">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Archivo+Expanded:wght@700;800&family=Karla:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+  :root{
+    color-scheme: light dark;
+    --bg:#EEF3F2; --surface:#FFFFFF; --surface-2:#E4ECEA;
+    --ink:#12303A; --ink-soft:#4B6169; --ink-faint:#7E9198;
+    --accent:#0E6E77; --accent-strong:#0A545C; --accent-ink:#FFFFFF;
+    --line:#D3DFDD;
+    --good:#1E7A4C; --good-bg:#E1F1E7;
+    --warn:#B8790A; --warn-bg:#FBEDD4;
+    --danger:#B23A2E; --danger-bg:#F8E2DF;
+    --logo-filter:none;
+    --shadow: 0 1px 2px rgba(18,48,58,0.06), 0 8px 24px -12px rgba(18,48,58,0.18);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0B1A1E; --surface:#12292F; --surface-2:#0F2227;
+      --ink:#E7F1EF; --ink-soft:#9FB6BA; --ink-faint:#6C8489;
+      --accent:#4FC3BE; --accent-strong:#6ED4CF; --accent-ink:#06171A;
+      --line:#234046; --good:#4CAF7D; --good-bg:#123024;
+      --warn:#E0A63A; --warn-bg:#33260D; --danger:#E5695C; --danger-bg:#3A1714;
+      --logo-filter:invert(1);
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
     }
-  ]
+  }
+  :root[data-theme="dark"]{
+    --bg:#0B1A1E; --surface:#12292F; --surface-2:#0F2227;
+    --ink:#E7F1EF; --ink-soft:#9FB6BA; --ink-faint:#6C8489;
+    --accent:#4FC3BE; --accent-strong:#6ED4CF; --accent-ink:#06171A;
+    --line:#234046; --good:#4CAF7D; --good-bg:#123024;
+    --warn:#E0A63A; --warn-bg:#33260D; --danger:#E5695C; --danger-bg:#3A1714;
+    --logo-filter:invert(1);
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);
+    font-family:'Karla',system-ui,-apple-system,sans-serif;
+    padding-inline:16px;padding-block:20px 48px;-webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:720px;margin:0 auto;display:flex;flex-direction:column;gap:18px;}
+  .top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+  .brand{display:flex;align-items:center;gap:10px;}
+  .logo-mark{height:38px;width:auto;display:block;filter:var(--logo-filter);}
+  .brand .suffix{font-family:'Archivo Expanded',sans-serif;font-weight:800;font-size:1.3rem;}
+  .signout{background:transparent;border:1px solid var(--line);color:var(--ink-soft);border-radius:9px;padding:8px 12px;font-family:'Archivo',sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;}
+  .signout:hover{background:var(--surface-2);}
+  .hello{color:var(--ink-soft);font-size:0.85rem;}
+  .hello b{color:var(--ink);}
+
+  .tabs{display:flex;background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:4px;gap:4px;}
+  .tab-btn{flex:1;border:none;background:transparent;color:var(--ink-soft);font-family:'Archivo',sans-serif;font-weight:700;font-size:0.92rem;padding:10px 12px;border-radius:9px;cursor:pointer;}
+  .tab-btn.active{background:var(--surface);color:var(--ink);box-shadow:var(--shadow);}
+  .tabs-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+  .tabs-scroll::-webkit-scrollbar{display:none;}
+  .tabs-scroll .tab-btn{flex:0 0 auto;white-space:nowrap;}
+  .panel{display:none;flex-direction:column;gap:16px;}
+  .panel.active{display:flex;}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px;box-shadow:var(--shadow);}
+  .card h2{margin:0 0 4px;font-family:'Archivo',sans-serif;font-size:1.05rem;font-weight:700;}
+  .card .hint{color:var(--ink-soft);font-size:0.85rem;margin:0 0 12px;}
+  .center-card{max-width:420px;margin:40px auto 0;}
+
+  .post{background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden;}
+  .post-head{display:flex;align-items:center;gap:10px;padding:14px 16px 8px;}
+  .post-avatar{width:38px;height:38px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;}
+  .post-avatar img{width:100%;height:100%;object-fit:cover;}
+  .post-who{display:flex;flex-direction:column;line-height:1.25;}
+  .post-who b{font-family:'Archivo',sans-serif;font-size:0.92rem;color:var(--ink);}
+  .post-who span{font-size:0.76rem;color:var(--ink-faint);}
+  .post-title{margin:2px 16px 4px;font-family:'Archivo',sans-serif;font-size:1rem;font-weight:700;color:var(--ink);}
+  .post-body{margin:0 16px 12px;white-space:pre-wrap;color:var(--ink-soft);font-size:0.92rem;line-height:1.45;}
+  .post-img{display:block;width:100%;max-height:420px;object-fit:cover;background:var(--surface-2);}
+  .post-foot{display:flex;align-items:center;gap:14px;padding:8px 16px 14px;border-top:1px solid var(--line);margin-top:10px;}
+  .like-btn{display:flex;align-items:center;gap:6px;border:none;background:transparent;color:var(--ink-soft);font-family:'Archivo',sans-serif;font-weight:700;font-size:0.86rem;padding:8px 10px;border-radius:9px;cursor:pointer;}
+  .like-btn:hover{background:var(--surface-2);}
+  .like-btn.liked{color:var(--accent-strong);}
+  .like-btn .heart{font-size:1.05rem;}
+
+  label.field{display:flex;flex-direction:column;gap:6px;font-size:0.85rem;color:var(--ink-soft);font-weight:600;}
+  label.field span{font-size:0.78rem;text-transform:uppercase;letter-spacing:0.04em;}
+  select,input[type="text"],input[type="time"],input[type="tel"],input[type="email"],input[type="password"],input[type="date"]{
+    font-family:'Karla',sans-serif;font-size:0.95rem;color:var(--ink);
+    background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:10px 11px;width:100%;
+  }
+  select:focus,input:focus{outline:2px solid var(--accent);outline-offset:1px;}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .row3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+  @media (max-width:480px){.row3{grid-template-columns:1fr;}}
+  .stack{display:flex;flex-direction:column;gap:12px;}
+
+  .btn{font-family:'Archivo',sans-serif;font-weight:700;font-size:0.95rem;border-radius:11px;border:1px solid transparent;padding:13px 18px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;}
+  .btn:active{transform:scale(0.98);}
+  .btn-primary{background:var(--accent);color:var(--accent-ink);}
+  .btn-primary:hover{filter:brightness(1.06);}
+  .btn-danger{background:var(--danger);color:#fff;}
+  .btn-ghost{background:transparent;color:var(--accent);border-color:var(--line);}
+  .btn-ghost:hover{background:var(--surface-2);}
+  .btn-big{width:100%;padding:18px;font-size:1.05rem;border-radius:13px;}
+  .btn[disabled]{opacity:0.5;cursor:not-allowed;}
+  .btn-link{background:none;border:none;color:var(--accent);font-family:'Karla',sans-serif;font-weight:700;cursor:pointer;padding:0;font-size:0.88rem;}
+
+  .ticket{background:linear-gradient(180deg,var(--surface) 0%, var(--surface-2) 100%);border:1px dashed var(--line);border-radius:16px;padding:20px;position:relative;}
+  .ticket .status-chip{position:absolute;top:16px;right:16px;font-family:'IBM Plex Mono',monospace;font-size:0.72rem;font-weight:600;padding:4px 10px;border-radius:100px;}
+  .chip-ok{background:var(--good-bg);color:var(--good);}
+  .chip-warn{background:var(--warn-bg);color:var(--warn);}
+  .chip-danger{background:var(--danger-bg);color:var(--danger);}
+  .clock-label{color:var(--ink-soft);font-size:0.78rem;text-transform:uppercase;letter-spacing:0.05em;}
+  .clock{font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:2.2rem;line-height:1;margin:6px 0 2px;font-variant-numeric:tabular-nums;}
+  .equip-row{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 16px;}
+  .equip-tag{font-family:'IBM Plex Mono',monospace;font-size:0.78rem;font-weight:600;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 10px;color:var(--ink-soft);}
+  .message{font-size:0.85rem;margin-bottom:12px;}
+  .msg-ok{color:var(--ink-soft);}
+  .msg-warn{color:var(--warn);}
+  .msg-danger{color:var(--danger);font-weight:600;}
+
+  .board-row{display:grid;grid-template-columns:1.3fr 1.6fr 0.9fr auto;gap:12px;align-items:center;padding:12px 14px;border:1px solid var(--line);border-radius:11px;background:var(--surface);}
+  .board-row + .board-row{margin-top:8px;}
+  @media (max-width:600px){.board-row{grid-template-columns:1fr;gap:8px;}}
+  .board-name{font-weight:700;font-size:0.92rem;}
+  .tag-esp{font-family:'IBM Plex Mono',monospace;font-size:0.65rem;font-weight:600;color:var(--accent);border:1px solid var(--accent);border-radius:100px;padding:1px 6px;margin-left:6px;}
+  .board-equip{display:flex;gap:6px;flex-wrap:wrap;}
+  .board-time{font-family:'IBM Plex Mono',monospace;font-size:0.82rem;color:var(--ink-soft);}
+  .board-time b{color:var(--ink);}
+  .status-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;}
+  .dot-ok{background:var(--good);} .dot-warn{background:var(--warn);} .dot-danger{background:var(--danger);}
+  .empty{color:var(--ink-faint);font-size:0.88rem;padding:18px 4px;text-align:center;}
+
+  .summary-strip{display:flex;gap:10px;flex-wrap:wrap;}
+  .summary-tile{flex:1;min-width:100px;background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:12px 14px;}
+  .summary-tile .n{font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:1.3rem;}
+  .summary-tile .l{color:var(--ink-soft);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.04em;}
+
+  .history-item{display:flex;justify-content:space-between;font-size:0.82rem;color:var(--ink-soft);padding:7px 0;border-bottom:1px solid var(--line);}
+  .history-item:last-child{border-bottom:none;}
+  .history-item b{color:var(--ink);}
+
+  .tyc-box{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px;font-size:0.8rem;color:var(--ink-soft);line-height:1.5;max-height:160px;overflow-y:auto;white-space:pre-wrap;}
+  .draft-flag{color:var(--danger);font-weight:700;display:block;margin-top:8px;}
+  .checkline{display:flex;align-items:flex-start;gap:9px;font-size:0.85rem;}
+  .checkline input{margin-top:3px;}
+
+  .overlay{position:fixed;inset:0;background:rgba(11,26,30,0.55);display:none;align-items:flex-end;justify-content:center;z-index:50;}
+  .overlay.open{display:flex;}
+  @media (min-width:560px){.overlay{align-items:center;padding:20px;}}
+  .modal{background:var(--surface);width:100%;max-width:480px;border-radius:18px 18px 0 0;padding:22px;box-shadow:var(--shadow);max-height:90vh;overflow-y:auto;display:flex;flex-direction:column;gap:14px;}
+  @media (min-width:560px){.modal{border-radius:18px;}}
+  .modal h3{margin:0;font-family:'Archivo',sans-serif;font-size:1.1rem;}
+  .modal-actions{display:flex;gap:10px;justify-content:flex-end;padding-top:4px;}
+
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);font-size:0.85rem;font-weight:600;padding:11px 18px;border-radius:100px;box-shadow:var(--shadow);z-index:80;opacity:0;pointer-events:none;transition:opacity .2s, transform .2s;max-width:90vw;text-align:center;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(-4px);}
+  .errtext{color:var(--danger);font-size:0.82rem;min-height:1.1em;}
+  [hidden]{display:none!important;}
+</style>
+</head>
+<body>
+
+<div id="app-boot" class="wrap"><p class="empty">Cargando Fundación Kosten…</p></div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// =====================================================================
+// CONFIGURACIÓN — datos públicos del proyecto de Supabase (seguros de
+// exponer: el acceso real lo controla Row Level Security del lado del
+// servidor, no el secreto de esta clave).
+// =====================================================================
+const SUPABASE_URL = "https://cmwdkrgshsfrhtduszdq.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_ACCXhsFXKdFArbwTxoZl3A_3wxgvf4O";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// Clave pública VAPID (segura de exponer — es la mitad "pública" del par
+// de claves que identifica a esta app frente a los navegadores para poder
+// mandarle notificaciones push). La clave privada vive solo en Supabase.
+const VAPID_PUBLIC_KEY = "BNGyYA_7IvMTzwEEp8pTG6RiBMe4aqKB1aqcuLlbOR2ycwatUdOEypNXp7d9h8dbaEVCuHUhy3RORTV-6_ofZ0g";
+
+// =====================================================================
+// ESTADO
+// =====================================================================
+let session = null;
+let perfil = null;
+let equipo = [];
+let fichajes = [];
+let tyc = null;
+let pollTimer = null;
+let socios = [];
+let pagosSinAsociar = [];
+let credencialesPropias = [];
+let credenciales = [];
+let modoRecuperarPassword = false;
+let anuncios = [];
+let anuncioLikes = [];
+let bitacoraEditando = null;
+let bitacoraNuevoAbierto = false;
+const UMBRAL_VIENTO_ALERTA_KMH = 40;
+let climaData = null;
+let climaTimer = null;
+
+// Ubicación aproximada de Caleta Olivia (para el resumen de clima).
+const CLIMA_LAT = -46.4333;
+const CLIMA_LON = -67.5333;
+const WINDGURU_URL = 'https://www.windguru.cz/51506';
+const WISUKI_TIDE_URL = 'https://wisuki.com/tide/5698/caleta-olivia';
+
+function pad(n){ return String(n).padStart(2,'0'); }
+function fmtHora(iso){ const d = new Date(iso); return pad(d.getHours())+':'+pad(d.getMinutes()); }
+function fechaLocal(iso){ const d = new Date(iso); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+function nowIso(){ return new Date().toISOString(); }
+function horaMasMinutos(mins){ const d = new Date(Date.now()+mins*60000); return pad(d.getHours())+':'+pad(d.getMinutes()); }
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._h); t._h = setTimeout(()=>t.classList.remove('show'), 3200);
 }
+function root(){ return document.getElementById('app-boot'); }
+
+// =====================================================================
+// CLIMA Y MAREAS (resumen en Mi fichaje + links a Windguru/Wisuki)
+// =====================================================================
+function descripcionClima(code){
+  if (code === 0) return '☀️ Despejado';
+  if ([1,2].includes(code)) return '🌤️ Poco nublado';
+  if (code === 3) return '☁️ Nublado';
+  if ([45,48].includes(code)) return '🌫️ Niebla';
+  if ([51,53,55,56,57,61,63,65,66,67,80,81,82].includes(code)) return '🌧️ Lluvia';
+  if ([71,73,75,77,85,86].includes(code)) return '❄️ Nieve';
+  if ([95,96,99].includes(code)) return '⛈️ Tormenta';
+  return '🌡️';
+}
+function direccionViento(deg){
+  const dirs = ['N','NE','E','SE','S','SO','O','NO'];
+  return dirs[Math.round(deg/45) % 8];
+}
+// Flecha apuntando hacia donde SOPLA el viento (el dato de la API es de
+// dónde VIENE, así que se gira 180° para que la flecha sea intuitiva).
+function flechaViento(deg){
+  return `<span style="display:inline-block;transform:rotate(${(deg+180)%360}deg);">↑</span>`;
+}
+function iniciarClima(){
+  if (climaTimer) return;
+  cargarClima();
+  climaTimer = setInterval(cargarClima, 15*60*1000);
+}
+async function cargarClima(){
+  try{
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${CLIMA_LAT}&longitude=${CLIMA_LON}&hourly=temperature_2m,wind_speed_10m,wind_direction_10m,weather_code&wind_speed_unit=kmh&forecast_days=2&timezone=auto`;
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('status ' + resp.status);
+    const data = await resp.json();
+    const h = data.hourly;
+    const ahora = new Date();
+    let idx = h.time.findIndex(t => new Date(t) >= ahora);
+    if (idx < 0) idx = 0;
+    const paso = 3; // horas entre cada franja del pronóstico
+    const cantidad = 4; // "ahora" + 3 franjas más = próximas ~9 horas
+    const horas = [];
+    for (let i = 0; i < cantidad; i++){
+      const j = idx + i*paso;
+      if (j >= h.time.length) break;
+      horas.push({
+        etiqueta: i===0 ? 'Ahora' : pad(new Date(h.time[j]).getHours())+'hs',
+        temp: h.temperature_2m[j],
+        viento: h.wind_speed_10m[j],
+        dir: h.wind_direction_10m[j],
+        code: h.weather_code[j],
+      });
+    }
+    climaData = { horas };
+  } catch(e){
+    console.error('No se pudo cargar el clima:', e);
+    climaData = null;
+  }
+  actualizarClimaDOM();
+}
+function franjaClimaHtml(f){
+  return `
+    <div style="flex:1;min-width:78px;text-align:center;background:var(--surface-2);border-radius:10px;padding:10px 6px;">
+      <div class="hint" style="margin:0 0 4px;">${f.etiqueta}</div>
+      <div style="font-size:1.3rem;line-height:1;">${descripcionClima(f.code).split(' ')[0]}</div>
+      <div style="margin:4px 0;"><b>${Math.round(f.temp)}°C</b></div>
+      <div class="hint" style="margin:0;">${flechaViento(f.dir)} ${Math.round(f.viento)} km/h ${direccionViento(f.dir)}</div>
+    </div>`;
+}
+function actualizarClimaDOM(){
+  const elAlerta = document.getElementById('clima-alerta');
+  if (elAlerta) elAlerta.innerHTML = alertaVientoHtml();
+  const el = document.getElementById('clima-resumen');
+  if (!el) return;
+  if (!climaData || !climaData.horas || climaData.horas.length === 0){
+    el.innerHTML = 'No se pudo cargar el clima ahora.';
+    return;
+  }
+  el.innerHTML = `<div style="display:flex;gap:8px;flex-wrap:wrap;">${climaData.horas.map(franjaClimaHtml).join('')}</div>`;
+}
+function alertaVientoHtml(){
+  if (!climaData || !climaData.horas || climaData.horas.length === 0) return '';
+  const ahora = climaData.horas[0];
+  if (Math.round(ahora.viento) < UMBRAL_VIENTO_ALERTA_KMH) return '';
+  return `<div class="message msg-danger" style="margin:0 0 12px;">⚠️ Viento fuerte ahora mismo (${Math.round(ahora.viento)} km/h ${direccionViento(ahora.dir)}) — evaluá bien las condiciones antes de salir.</div>`;
+}
+function renderClimaCard(){
+  const contenido = (climaData && climaData.horas && climaData.horas.length > 0)
+    ? `<div style="display:flex;gap:8px;flex-wrap:wrap;">${climaData.horas.map(franjaClimaHtml).join('')}</div>`
+    : 'Cargando clima…';
+  return `
+    <div class="card">
+      <h2 style="margin-bottom:2px;">Clima y mareas</h2>
+      <p class="hint" style="margin:0 0 12px;">Próximas horas — viento en km/h, flecha = hacia dónde sopla.</p>
+      <div id="clima-alerta">${alertaVientoHtml()}</div>
+      <div id="clima-resumen">${contenido}</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;">
+        <a class="btn btn-ghost" style="text-decoration:none;" href="${WINDGURU_URL}" target="_blank" rel="noopener">Pronóstico completo en Windguru →</a>
+        <a class="btn btn-ghost" style="text-decoration:none;" href="${WISUKI_TIDE_URL}" target="_blank" rel="noopener">Tabla de mareas en Wisuki →</a>
+      </div>
+    </div>`;
+}
+
+// =====================================================================
+// ARRANQUE
+// =====================================================================
+async function boot(){
+  const { data } = await sb.auth.getSession();
+  session = data.session;
+  sb.auth.onAuthStateChange((_event, s) => {
+    session = s;
+    if (_event === 'PASSWORD_RECOVERY') modoRecuperarPassword = true;
+    render();
+  });
+  await render();
+}
+
+async function render(){
+  if (pollTimer){ clearInterval(pollTimer); pollTimer = null; }
+  if (modoRecuperarPassword){
+    renderNuevaPassword();
+    return;
+  }
+  if (!session){
+    renderAuth();
+    return;
+  }
+  const { data: p, error } = await sb.from('perfiles').select('*').eq('id', session.user.id).maybeSingle();
+  if (error){ toast('Error cargando tu perfil: ' + error.message); }
+  perfil = p;
+  if (!perfil || !perfil.nombre || !perfil.acepta_tyc){
+    await renderCompletarPerfil();
+    return;
+  }
+  await renderApp();
+}
+
+// =====================================================================
+// PANTALLA: LOGIN / REGISTRO
+// =====================================================================
+function renderAuth(){
+  root().innerHTML = `
+    <div class="top" style="justify-content:center;">
+      <div class="brand">
+        <img class="logo-mark" src="kosten-wordmark.png" alt="Fundación Kosten">
+        <span class="suffix">Adherentes</span>
+      </div>
+    </div>
+    <div class="card center-card">
+      <div class="tabs" style="margin-bottom:16px;">
+        <button class="tab-btn active" id="authtab-login" onclick="setAuthTab('login')">Ingresar</button>
+        <button class="tab-btn" id="authtab-signup" onclick="setAuthTab('signup')">Crear cuenta</button>
+      </div>
+
+      <div id="auth-login" class="stack">
+        <label class="field"><span>Email</span><input type="email" id="li-email"/></label>
+        <label class="field"><span>Contraseña</span><input type="password" id="li-pass"/></label>
+        <p class="errtext" id="li-err"></p>
+        <button class="btn btn-primary btn-big" onclick="hacerLogin()">Ingresar</button>
+        <button class="btn btn-ghost" style="margin-top:2px;" onclick="mostrarRecuperar()">¿Olvidaste tu contraseña?</button>
+      </div>
+
+      <div id="auth-recuperar" class="stack" hidden>
+        <p class="hint" style="margin:0;">Ingresá tu email y te mandamos un link para elegir una contraseña nueva.</p>
+        <label class="field"><span>Email</span><input type="email" id="rec-email"/></label>
+        <p class="errtext" id="rec-err"></p>
+        <button class="btn btn-primary btn-big" onclick="enviarRecuperar()">Enviar link</button>
+        <button class="btn btn-ghost" style="margin-top:2px;" onclick="ocultarRecuperar()">Volver a ingresar</button>
+      </div>
+
+      <div id="auth-signup" class="stack" hidden>
+        <label class="field"><span>Email</span><input type="email" id="su-email"/></label>
+        <label class="field"><span>Contraseña (mínimo 6 caracteres)</span><input type="password" id="su-pass"/></label>
+        <p class="errtext" id="su-err"></p>
+        <button class="btn btn-primary btn-big" onclick="hacerSignup()">Crear cuenta</button>
+        <p class="hint" style="margin:0;">Después de crear la cuenta te va a llegar un email de confirmación — hay que abrirlo antes de poder ingresar.</p>
+      </div>
+    </div>
+  `;
+}
+function setAuthTab(which){
+  ocultarRecuperar();
+  document.getElementById('auth-login').hidden = which!=='login';
+  document.getElementById('auth-signup').hidden = which!=='signup';
+  document.getElementById('authtab-login').classList.toggle('active', which==='login');
+  document.getElementById('authtab-signup').classList.toggle('active', which==='signup');
+}
+function mostrarRecuperar(){
+  document.getElementById('auth-login').hidden = true;
+  document.getElementById('auth-recuperar').hidden = false;
+  document.getElementById('rec-email').value = document.getElementById('li-email').value.trim();
+}
+function ocultarRecuperar(){
+  document.getElementById('auth-recuperar').hidden = true;
+  document.getElementById('auth-login').hidden = false;
+}
+async function enviarRecuperar(){
+  const email = document.getElementById('rec-email').value.trim();
+  const errEl = document.getElementById('rec-err');
+  errEl.textContent = '';
+  if (!email){ errEl.textContent = 'Poné tu email.'; return; }
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+  if (error){ errEl.textContent = traducirError(error.message); return; }
+  toast('Te mandamos un email con el link para elegir una contraseña nueva.');
+  ocultarRecuperar();
+}
+function renderNuevaPassword(){
+  root().innerHTML = `
+    <div class="top" style="justify-content:center;">
+      <div class="brand">
+        <img class="logo-mark" src="kosten-wordmark.png" alt="Fundación Kosten">
+        <span class="suffix">Adherentes</span>
+      </div>
+    </div>
+    <div class="card center-card">
+      <h2 style="margin-top:0;">Elegí tu nueva contraseña</h2>
+      <div class="stack">
+        <label class="field"><span>Contraseña nueva (mínimo 6 caracteres)</span><input type="password" id="np-pass"/></label>
+        <label class="field"><span>Repetila</span><input type="password" id="np-pass2"/></label>
+        <p class="errtext" id="np-err"></p>
+        <button class="btn btn-primary btn-big" onclick="guardarNuevaPassword()">Guardar contraseña</button>
+      </div>
+    </div>
+  `;
+}
+async function guardarNuevaPassword(){
+  const pass = document.getElementById('np-pass').value;
+  const pass2 = document.getElementById('np-pass2').value;
+  const errEl = document.getElementById('np-err');
+  errEl.textContent = '';
+  if (pass.length < 6){ errEl.textContent = 'La contraseña necesita al menos 6 caracteres.'; return; }
+  if (pass !== pass2){ errEl.textContent = 'Las dos contraseñas no coinciden.'; return; }
+  const { error } = await sb.auth.updateUser({ password: pass });
+  if (error){ errEl.textContent = traducirError(error.message); return; }
+  modoRecuperarPassword = false;
+  toast('Contraseña actualizada.');
+  await render();
+}
+async function hacerLogin(){
+  const email = document.getElementById('li-email').value.trim();
+  const password = document.getElementById('li-pass').value;
+  const errEl = document.getElementById('li-err');
+  errEl.textContent = '';
+  if (!email || !password){ errEl.textContent = 'Completá email y contraseña.'; return; }
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  if (error){ errEl.textContent = traducirError(error.message); return; }
+  await render();
+}
+async function hacerSignup(){
+  const email = document.getElementById('su-email').value.trim();
+  const password = document.getElementById('su-pass').value;
+  const errEl = document.getElementById('su-err');
+  errEl.textContent = '';
+  if (!email || !password){ errEl.textContent = 'Completá email y contraseña.'; return; }
+  if (password.length < 6){ errEl.textContent = 'La contraseña necesita al menos 6 caracteres.'; return; }
+  const { error } = await sb.auth.signUp({ email, password });
+  if (error){ errEl.textContent = traducirError(error.message); return; }
+  toast('Cuenta creada. Revisá tu email para confirmarla.');
+  setAuthTab('login');
+}
+function traducirError(msg){
+  if (/already registered|already exists/i.test(msg)) return 'Ese email ya tiene una cuenta creada.';
+  if (/invalid login credentials/i.test(msg)) return 'Email o contraseña incorrectos.';
+  if (/email not confirmed/i.test(msg)) return 'Todavía no confirmaste tu email — revisá tu casilla.';
+  return msg;
+}
+async function cerrarSesion(){
+  await sb.auth.signOut();
+  await render();
+}
+
+// =====================================================================
+// PANTALLA: COMPLETAR PERFIL + TÉRMINOS Y CONDICIONES
+// =====================================================================
+async function renderCompletarPerfil(){
+  if (!tyc){
+    const { data } = await sb.from('terminos_condiciones').select('*').order('fecha_publicacion', { ascending:false }).limit(1).maybeSingle();
+    tyc = data;
+  }
+  const p = perfil || {};
+  root().innerHTML = `
+    <div class="top" style="justify-content:center;">
+      <div class="brand">
+        <img class="logo-mark" src="kosten-wordmark.png" alt="Fundación Kosten">
+        <span class="suffix">Adherentes</span>
+      </div>
+    </div>
+    <div class="card center-card">
+      <h2>Completá tu perfil</h2>
+      <p class="hint">Estos datos quedan disponibles para la comisión de Fundación Kosten.</p>
+      <div class="stack">
+        <div class="row2">
+          <label class="field"><span>Nombre</span><input type="text" id="cp-nombre" value="${p.nombre||''}"/></label>
+          <label class="field"><span>Apellido</span><input type="text" id="cp-apellido" value="${p.apellido||''}"/></label>
+        </div>
+        <div class="row2">
+          <label class="field"><span>DNI</span><input type="text" id="cp-dni" value="${p.dni||''}"/></label>
+          <label class="field"><span>Teléfono</span><input type="tel" id="cp-telefono" value="${p.telefono||''}"/></label>
+        </div>
+        <label class="field"><span>Contacto de emergencia</span><input type="text" id="cp-emergencia" placeholder="Nombre y teléfono" value="${p.contacto_emergencia||''}"/></label>
+
+        <div>
+          <label class="field"><span>Términos y condiciones</span></label>
+          <div class="tyc-box">${tyc ? tyc.texto : 'No se pudieron cargar los términos y condiciones — probá recargar la página.'}</div>
+          <label class="checkline" style="margin-top:10px;">
+            <input type="checkbox" id="cp-tyc" ${p.acepta_tyc?'checked':''}/>
+            <span>Acepto los términos y condiciones de la Fundación.</span>
+          </label>
+        </div>
+        <p class="errtext" id="cp-err"></p>
+        <button class="btn btn-primary btn-big" onclick="guardarPerfil()">Guardar y continuar</button>
+        <button class="btn-link" onclick="cerrarSesion()">Cerrar sesión</button>
+      </div>
+    </div>
+  `;
+}
+async function guardarPerfil(){
+  const nombre = document.getElementById('cp-nombre').value.trim();
+  const apellido = document.getElementById('cp-apellido').value.trim();
+  const dni = document.getElementById('cp-dni').value.trim();
+  const telefono = document.getElementById('cp-telefono').value.trim();
+  const contacto_emergencia = document.getElementById('cp-emergencia').value.trim();
+  const aceptaTyc = document.getElementById('cp-tyc').checked;
+  const errEl = document.getElementById('cp-err');
+  if (!nombre || !apellido || !dni){ errEl.textContent = 'Completá nombre, apellido y DNI.'; return; }
+  if (!aceptaTyc){ errEl.textContent = 'Falta aceptar los términos y condiciones.'; return; }
+  const payload = { nombre, apellido, dni, telefono, contacto_emergencia, acepta_tyc: true };
+  if (!perfil.acepta_tyc){
+    payload.fecha_tyc = nowIso();
+    payload.version_tyc = tyc ? tyc.version : null;
+  }
+  const { error } = await sb.from('perfiles').update(payload).eq('id', session.user.id);
+  if (error){ errEl.textContent = 'No se pudo guardar: ' + error.message; return; }
+  await render();
+}
+
+// =====================================================================
+// APP PRINCIPAL (fichaje + staff)
+// =====================================================================
+async function cargarDatos(){
+  const [{ data: eq, error: e1 }, { data: fi, error: e2 }, { data: cr, error: e5 }] = await Promise.all([
+    sb.from('equipo').select('*'),
+    sb.from('fichajes').select('*, perfiles(nombre,apellido)').order('hora_ingreso', { ascending:false }).limit(200),
+    sb.from('credenciales').select('*').eq('socio_id', session.user.id).order('fecha', { ascending:false })
+  ]);
+  if (e1) toast('Error leyendo equipo: '+e1.message);
+  if (e2) toast('Error leyendo fichajes: '+e2.message);
+  if (e5) toast('Error leyendo credenciales: '+e5.message);
+  equipo = eq || [];
+  fichajes = fi || [];
+  credencialesPropias = cr || [];
+}
+
+async function cargarDatosStaffCredenciales(){
+  const { data, error } = await sb.from('credenciales').select('*, perfiles!credenciales_socio_id_fkey(nombre,apellido)').order('fecha', { ascending:false }).limit(300);
+  if (error) toast('Error leyendo credenciales: '+error.message);
+  credenciales = data || [];
+}
+
+async function refrescarPerfil(){
+  const { data } = await sb.from('perfiles').select('*').eq('id', session.user.id).maybeSingle();
+  if (data) perfil = data;
+}
+
+async function cargarDatosStaffCuotas(){
+  const [{ data: sc, error: e3 }, { data: ps, error: e4 }] = await Promise.all([
+    sb.from('perfiles').select('id,nombre,apellido,dni,rol,cuota_vencida').eq('rol','socio').order('nombre'),
+    sb.from('pagos_sin_asociar').select('*').eq('estado','pendiente').order('created_at', { ascending:false })
+  ]);
+  if (e3) toast('Error leyendo adherentes: '+e3.message);
+  if (e4) toast('Error leyendo pagos sin asociar: '+e4.message);
+  socios = sc || [];
+  pagosSinAsociar = ps || [];
+}
+
+async function renderApp(){
+  await cargarDatos();
+  const esStaff = perfil.rol === 'staff' || perfil.rol === 'admin';
+  root().innerHTML = `
+    <div class="top">
+      <div class="brand">
+        <img class="logo-mark" src="kosten-wordmark.png" alt="Fundación Kosten">
+        <span class="suffix">Adherentes</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span class="hello">Hola, <b>${perfil.nombre}</b></span>
+        <button class="btn btn-ghost" style="padding:8px 12px;" onclick="abrirModalCarnet()" title="Mi carnet">🪪</button>
+        <button class="signout" onclick="cerrarSesion()">Salir</button>
+      </div>
+    </div>
+    <div id="push-banner"></div>
+
+    <div class="tabs" id="main-tabs" ${esStaff ? '' : 'style="display:none;"'}>
+      <button class="tab-btn active" id="tabbtn-socio" onclick="setMainTab('socio')">Mi fichaje</button>
+      <button class="tab-btn" id="tabbtn-staff" onclick="setMainTab('staff')">Staff / Comisión</button>
+    </div>
+
+    <div class="panel active" id="panel-socio">
+      <div class="tabs tabs-scroll" id="socio-tabs">
+        <button class="tab-btn active" id="sociotab-fichaje" onclick="setSocioTab('fichaje')">Fichaje</button>
+        <button class="tab-btn" id="sociotab-bitacora" onclick="setSocioTab('bitacora')">Bitácora</button>
+        <button class="tab-btn" id="sociotab-anuncios" onclick="setSocioTab('anuncios')">Anuncios</button>
+        <button class="tab-btn" id="sociotab-cuota" onclick="setSocioTab('cuota')">Mi contribución</button>
+        <button class="tab-btn" id="sociotab-certificados" onclick="setSocioTab('certificados')">Mis certificados</button>
+      </div>
+
+      <div class="panel active" id="sociosub-fichaje">
+        <div id="socio-content"></div>
+      </div>
+      <div class="panel" id="sociosub-bitacora">
+        <div id="socio-bitacora"></div>
+      </div>
+      <div class="panel" id="sociosub-anuncios">
+        <div id="socio-anuncios"></div>
+      </div>
+      <div class="panel" id="sociosub-cuota">
+        <div class="card"><h2>Mi contribución</h2><p class="hint">¡Próximamente! No seas impaciente cheee 😄</p></div>
+      </div>
+      <div class="panel" id="sociosub-certificados">
+        <div id="socio-certificados"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-staff">
+      <div class="tabs tabs-scroll" id="staff-tabs">
+        <button class="tab-btn active" id="stafftab-fichaje" onclick="setStaffTab('fichaje')">Fichaje</button>
+        <button class="tab-btn" id="stafftab-cuotas" onclick="setStaffTab('cuotas')">Contribuciones</button>
+        <button class="tab-btn" id="stafftab-inventario" onclick="setStaffTab('inventario')">Inventario</button>
+        <button class="tab-btn" id="stafftab-credenciales" onclick="setStaffTab('credenciales')">Credenciales</button>
+        <button class="tab-btn" id="stafftab-anuncios" onclick="setStaffTab('anuncios')">Anuncios</button>
+      </div>
+
+      <div class="panel active" id="staffsub-fichaje">
+        <div class="summary-strip" id="staff-summary"></div>
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:2px;">
+            <div>
+              <h2 style="margin-bottom:0;">En el agua ahora</h2>
+              <p class="hint">🟡 pasó la hora estimada de salida · 🔴 hace más de 30 min que debería haber salido.</p>
+            </div>
+            <button class="btn btn-primary" onclick="openModal('modal-esporadico')">+ Registrar esporádico</button>
+          </div>
+          <div id="staff-board"></div>
+        </div>
+
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:2px;">
+            <div>
+              <h2 style="margin-bottom:0;">Historial de fichajes</h2>
+              <p class="hint">Todos los ingresos registrados (adherentes y esporádicos), del día que elijas.</p>
+            </div>
+            <label class="field" style="margin:0;">
+              <span>Fecha</span>
+              <input type="date" id="hist-fecha" onchange="renderStaffHistory()"/>
+            </label>
+          </div>
+          <div id="staff-history"></div>
+        </div>
+      </div>
+
+      <div class="panel" id="staffsub-cuotas">
+        <div class="card">
+          <h2>Contribuciones</h2>
+          <p class="hint">El estado de cada adherente se actualiza solo con cada pago de Mercado Pago. Para casos manuales (efectivo, un pago que no se pudo identificar solo), usá lo de abajo.</p>
+          <div style="margin-bottom:16px;">
+            <label class="field" style="margin-bottom:8px;"><span>Marcar contribución del mes como pagada</span>
+              <select id="cuota-socio-select"></select>
+            </label>
+            <button class="btn btn-ghost" onclick="marcarCuotaManual()">Marcar como pagada (este mes)</button>
+          </div>
+          <div id="staff-vencidos"></div>
+          <div id="staff-pagos-sin-asociar" style="margin-top:14px;"></div>
+        </div>
+      </div>
+
+      <div class="panel" id="staffsub-inventario">
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:2px;">
+            <div>
+              <h2 style="margin-bottom:0;">Inventario</h2>
+              <p class="hint">Lo que esté "Disponible" es lo que van a poder elegir los adherentes al fichar.</p>
+            </div>
+            <button class="btn btn-primary" onclick="abrirModalEquipo()">+ Agregar equipo</button>
+          </div>
+          <div class="tabs" id="inv-tabs" style="margin-bottom:14px;">
+            <button class="tab-btn active" id="invtab-kayak" onclick="setInvTab('kayak')">Kayaks</button>
+            <button class="tab-btn" id="invtab-sup" onclick="setInvTab('sup')">SUP</button>
+            <button class="tab-btn" id="invtab-remo" onclick="setInvTab('remo')">Remos</button>
+            <button class="tab-btn" id="invtab-chaleco" onclick="setInvTab('chaleco')">Chalecos</button>
+          </div>
+          <div id="staff-inventario"></div>
+        </div>
+      </div>
+
+      <div class="panel" id="staffsub-credenciales">
+        <div class="card">
+          <h2>Agregar credencial</h2>
+          <p class="hint">Cursos, talleres o certificaciones de cada adherente (ej. SUP, iniciación náutica, RCP).</p>
+          <div class="row2">
+            <label class="field"><span>Adherente</span><select id="cred-socio-select"></select></label>
+            <label class="field"><span>Credencial</span>
+              <select id="cred-tipo-select" onchange="onCambioTipoCredencial()">
+                <option value="Curso de SUP">Curso de SUP</option>
+                <option value="Taller de iniciación náutica">Taller de iniciación náutica</option>
+                <option value="Actualización náutica">Actualización náutica</option>
+                <option value="Taller de RCP">Taller de RCP</option>
+                <option value="Monitor">Monitor</option>
+                <option value="otro">Otra (escribir)</option>
+              </select>
+            </label>
+          </div>
+          <label class="field" id="cred-otro-wrap" hidden style="margin-top:10px;"><span>Nombre de la credencial</span><input type="text" id="cred-otro"/></label>
+          <div class="row2" style="margin-top:10px;">
+            <label class="field"><span>Fecha</span><input type="date" id="cred-fecha"/></label>
+            <label class="field"><span>Vence (opcional)</span><input type="date" id="cred-vencimiento"/></label>
+          </div>
+          <label class="field" style="margin-top:10px;"><span>Certificado por (opcional)</span><input type="text" id="cred-certificador" placeholder="Ej: instructor, escuela u organismo que certifica"/></label>
+          <p class="errtext" id="cred-err"></p>
+          <button class="btn btn-primary" style="margin-top:12px;" onclick="agregarCredencial()">Agregar credencial</button>
+        </div>
+
+        <div class="card">
+          <h2>Credenciales cargadas</h2>
+          <div id="staff-credenciales"></div>
+        </div>
+      </div>
+
+      <div class="panel" id="staffsub-anuncios">
+        <div class="card">
+          <h2>Publicar anuncio</h2>
+          <p class="hint">Se muestra a todos los adherentes (y les llega una notificación) hasta el día que elijas — después se borra solo.</p>
+          <label class="field"><span>Título</span><input type="text" id="an-titulo" placeholder="Ej: Clase de revalidación"/></label>
+          <label class="field" style="margin-top:10px;"><span>Detalle</span><textarea id="an-cuerpo" rows="3" style="width:100%;font-family:inherit;font-size:0.95rem;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);"></textarea></label>
+          <label class="field" style="margin-top:10px;"><span>Foto (opcional)</span><input type="file" id="an-imagen" accept="image/*"/></label>
+          <label class="field" style="margin-top:10px;"><span>Mostrar hasta</span><input type="date" id="an-vigencia"/></label>
+          <p class="errtext" id="an-err"></p>
+          <button class="btn btn-primary" style="margin-top:12px;" id="an-btn-publicar" onclick="agregarAnuncio()">Publicar (envía notificación)</button>
+        </div>
+        <div class="card">
+          <h2>Anuncios vigentes</h2>
+          <div id="staff-anuncios"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="overlay" id="modal-carnet">
+      <div class="modal">
+        <h3 style="text-align:center;">Mi carnet</h3>
+        <div style="text-align:center;">
+          <p style="margin:0 0 4px;font-size:1.1rem;"><b>${perfil.nombre} ${perfil.apellido||''}</b></p>
+          <p class="hint" style="margin:0 0 14px;">Adherente N.° <b style="color:var(--ink);">${perfil.numero_socio ?? '—'}</b></p>
+          <img src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent('KOSTEN-'+(perfil.numero_socio ?? perfil.id))}" width="220" height="220" alt="Código QR de adherente" style="border-radius:12px;background:#fff;padding:10px;"/>
+        </div>
+        <div class="stack" style="margin-top:16px;">
+          <label class="field"><span>DNI</span><input type="text" value="${perfil.dni||''}" disabled/></label>
+          <label class="field"><span>Email</span><input type="text" value="${perfil.email||''}" disabled/></label>
+          <label class="field"><span>Teléfono</span><input type="text" id="carnet-telefono" value="${perfil.telefono||''}"/></label>
+          <label class="field"><span>Contacto de emergencia</span><input type="text" id="carnet-contacto-emergencia" value="${perfil.contacto_emergencia||''}"/></label>
+        </div>
+        <p class="hint" style="margin:8px 0 0;">El nombre, el DNI y el email no se pueden modificar. Si hay un error en esos datos, avisale a staff/comisión.</p>
+        <p class="errtext" id="carnet-err"></p>
+        <div class="modal-actions" style="margin-top:12px;">
+          <button class="btn btn-ghost" onclick="closeModal('modal-carnet')">Cerrar</button>
+          <button class="btn btn-primary" onclick="guardarCarnet()">Guardar cambios</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="overlay" id="modal-equipo">
+      <div class="modal">
+        <h3>Agregar equipo</h3>
+        <label class="field"><span>Tipo</span>
+          <select id="eq-tipo" onchange="onCambioTipoEquipo()">
+            <option value="embarcacion">Embarcación</option>
+            <option value="remo">Remo</option>
+            <option value="chaleco">Chaleco</option>
+          </select>
+        </label>
+        <label class="field" id="eq-subtipo-wrap"><span>Subtipo</span>
+          <select id="eq-subtipo">
+            <option value="kayak">Kayak</option>
+            <option value="sup">SUP</option>
+          </select>
+        </label>
+        <label class="field"><span>Número</span><input type="text" inputmode="numeric" id="eq-numero"/></label>
+        <p class="errtext" id="eq-err"></p>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" onclick="closeModal('modal-equipo')">Cancelar</button>
+          <button class="btn btn-primary" onclick="agregarEquipo()">Agregar</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="overlay" id="modal-esporadico">
+      <div class="modal">
+        <h3>Registrar ingreso esporádico</h3>
+        <p class="hint" style="margin:0;">Para alguien que entra al agua una sola vez y no tiene cuenta.</p>
+        <div class="row2">
+          <label class="field"><span>Nombre y apellido</span><input type="text" id="esp-nombre"/></label>
+          <label class="field"><span>DNI (opcional)</span><input type="text" id="esp-dni"/></label>
+        </div>
+        <div class="row3">
+          <label class="field"><span>Embarcación</span><select id="esp-embarcacion"></select></label>
+          <label class="field"><span>Remo</span><select id="esp-remo"></select></label>
+          <label class="field"><span>Chaleco</span><select id="esp-chaleco"></select></label>
+        </div>
+        <label class="field"><span>Hora estimada de salida</span><input type="time" id="esp-hora"/></label>
+        <p class="errtext" id="esp-err"></p>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" onclick="closeModal('modal-esporadico')">Cancelar</button>
+          <button class="btn btn-primary" onclick="registrarEsporadico()">Fichar ingreso</button>
+        </div>
+      </div>
+    </div>
+  `;
+  renderSocioContent();
+  renderCertificadosTab();
+  await cargarAnuncios();
+  renderAnunciosSocio();
+  if (esStaff){
+    renderStaffSummary(); renderStaffBoard(); renderStaffHistory(); renderStaffInventario();
+    refreshEquipoSelect('esp-embarcacion','embarcacion'); refreshEquipoSelect('esp-remo','remo'); refreshEquipoSelect('esp-chaleco','chaleco'); document.getElementById('esp-hora').value = horaMasMinutos(90);
+    await cargarDatosStaffCuotas(); refrescarSelectSocios(); renderStaffVencidos(); renderPagosSinAsociar();
+    await cargarDatosStaffCredenciales(); refrescarSelectSociosCredencial(); renderStaffCredenciales();
+    document.getElementById('cred-fecha').value = fechaLocal(nowIso());
+    document.getElementById('an-vigencia').value = fechaLocal(nowIso());
+    renderStaffAnuncios();
+  }
+  renderPushBanner();
+
+  pollTimer = setInterval(async () => {
+    await refrescarPerfil();
+    await cargarDatos();
+    renderSocioContent();
+    renderCertificadosTab();
+    if (socioTabActual === 'bitacora') renderBitacora();
+    await cargarAnuncios();
+    renderAnunciosSocio();
+    if (esStaff){
+      renderStaffSummary(); renderStaffBoard(); renderStaffHistory(); renderStaffInventario();
+      await cargarDatosStaffCuotas(); refrescarSelectSocios(); renderStaffVencidos(); renderPagosSinAsociar();
+      await cargarDatosStaffCredenciales(); renderStaffCredenciales();
+      renderStaffAnuncios();
+    }
+  }, 20000);
+}
+
+function setMainTab(which){
+  document.getElementById('panel-socio').classList.toggle('active', which==='socio');
+  document.getElementById('panel-staff').classList.toggle('active', which==='staff');
+  document.getElementById('tabbtn-socio').classList.toggle('active', which==='socio');
+  document.getElementById('tabbtn-staff').classList.toggle('active', which==='staff');
+}
+let staffTabActual = 'fichaje';
+function setStaffTab(which){
+  staffTabActual = which;
+  ['fichaje','cuotas','inventario','credenciales','anuncios'].forEach(w => {
+    document.getElementById('staffsub-'+w).classList.toggle('active', w===which);
+    document.getElementById('stafftab-'+w).classList.toggle('active', w===which);
+  });
+}
+let socioTabActual = 'fichaje';
+function setSocioTab(which){
+  socioTabActual = which;
+  ['fichaje','bitacora','anuncios','cuota','certificados'].forEach(w => {
+    document.getElementById('sociosub-'+w).classList.toggle('active', w===which);
+    document.getElementById('sociotab-'+w).classList.toggle('active', w===which);
+  });
+  if (which === 'bitacora') renderBitacora();
+  if (which === 'anuncios') renderAnunciosSocio();
+  if (which === 'certificados') renderCertificadosTab();
+}
+function renderCertificadosTab(){
+  const cont = document.getElementById('socio-certificados');
+  if (cont) cont.innerHTML = renderMisCredenciales();
+}
+function abrirModalCarnet(){ openModal('modal-carnet'); }
+async function guardarCarnet(){
+  const errEl = document.getElementById('carnet-err');
+  const telefono = document.getElementById('carnet-telefono').value.trim();
+  const contacto_emergencia = document.getElementById('carnet-contacto-emergencia').value.trim();
+  errEl.textContent = '';
+  const { error } = await sb.from('perfiles').update({ telefono, contacto_emergencia }).eq('id', session.user.id);
+  if (error){ errEl.textContent = 'No se pudo guardar: ' + error.message; return; }
+  perfil.telefono = telefono;
+  perfil.contacto_emergencia = contacto_emergencia;
+  toast('Tus datos se actualizaron.');
+  closeModal('modal-carnet');
+}
+let invTabActual = 'kayak';
+function setInvTab(cat){
+  invTabActual = cat;
+  ['kayak','sup','remo','chaleco'].forEach(c => document.getElementById('invtab-'+c).classList.toggle('active', c===cat));
+  renderStaffInventario();
+}
+function openModal(id){ document.getElementById(id).classList.add('open'); }
+function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+
+function estadoFichaje(f){
+  if (f.estado !== 'en_agua') return 'cerrado';
+  const est = new Date(f.hora_estimada_salida).getTime();
+  const ahora = Date.now();
+  if (ahora < est) return 'ok';
+  if (ahora - est < 30*60000) return 'recordatorio';
+  return 'alerta';
+}
+function labelEquipoItem(e){
+  if (e.tipo==='embarcacion') return (e.subtipo==='sup' ? 'SUP ' : 'Kayak ') + e.numero;
+  if (e.tipo==='remo') return 'Remo ' + e.numero;
+  return 'Chaleco ' + e.numero;
+}
+function labelPropio(tipo){ return tipo==='embarcacion' ? 'Trae su propia embarcación' : tipo==='remo' ? 'Trae su propio remo' : 'Trae su propio chaleco'; }
+function labelPropioCorto(tipo){ return tipo==='embarcacion' ? 'Embarcación propia' : tipo==='remo' ? 'Remo propio' : 'Chaleco propio'; }
+function labelDe(id, tipo){
+  if (!id) return labelPropioCorto(tipo);
+  const e = equipo.find(x=>x.id===id);
+  return e ? labelEquipoItem(e) : '—';
+}
+function refreshEquipoSelect(selectId, tipo, soloPropio){
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  if (soloPropio){
+    sel.innerHTML = `<option value="propio" selected>${labelPropio(tipo)}</option>`;
+    return;
+  }
+  const disponibles = equipo.filter(e => e.tipo===tipo && e.estado==='disponible')
+    .sort((a,b)=> (a.subtipo||'').localeCompare(b.subtipo||'') || a.numero-b.numero);
+  sel.innerHTML = disponibles.map(e=>`<option value="${e.id}">${labelEquipoItem(e)}</option>`).join('') + `<option value="propio">${labelPropio(tipo)}</option>`;
+}
+function resolverSeleccion(selectId){
+  const val = document.getElementById(selectId).value;
+  return (!val || val === 'propio') ? null : val;
+}
+
+function renderSocioContent(){
+  const cont = document.getElementById('socio-content');
+  const activo = fichajes.find(f=>f.socio_id===session.user.id && f.estado==='en_agua');
+  const cuotaVencida = !!perfil.cuota_vencida;
+  iniciarClima();
+  const cuotaCard = cuotaVencida ? `
+    <div class="card" style="border-color:var(--warn);">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <div>
+          <h2 style="margin-bottom:2px;">Contribución vencida</h2>
+          <p class="hint" style="margin:0;">Podés fichar igual usando tu propio equipo. Para usar equipo del club, primero regularizá la contribución.</p>
+        </div>
+        <button class="btn btn-primary" onclick="pagarCuota()">Pagar contribución</button>
+      </div>
+    </div>` : '';
+  if (activo){
+    const est = estadoFichaje(activo);
+    const chip = est==='ok' ? ['chip-ok','En agua'] : est==='recordatorio' ? ['chip-warn','Recordá fichar salida'] : ['chip-danger','Excedido — avisar a staff'];
+    const msg = est==='ok' ? ['msg-ok','Todo en orden. Fichá tu salida cuando vuelvas a la costa.']
+              : est==='recordatorio' ? ['msg-warn','Ya pasó tu hora estimada de salida.']
+              : ['msg-danger','Superaste largamente tu hora estimada. El staff ya fue avisado.'];
+    cont.innerHTML = `
+      ${renderClimaCard()}
+      ${cuotaCard}
+      <div class="ticket">
+        <span class="status-chip ${chip[0]}">${chip[1]}</span>
+        <div class="clock-label">Ingresaste al agua</div>
+        <div class="clock">${fmtHora(activo.hora_ingreso)}</div>
+        <div class="equip-row">
+          <span class="equip-tag">🛶 ${labelDe(activo.embarcacion_id,'embarcacion')}</span>
+          <span class="equip-tag">🪛 ${labelDe(activo.remo_id,'remo')}</span>
+          <span class="equip-tag">🦺 ${labelDe(activo.chaleco_id,'chaleco')}</span>
+        </div>
+        <p class="message ${msg[0]}">${msg[1]}</p>
+        <p class="hint" style="margin:-6px 0 12px;">Hora estimada de salida: <b style="color:var(--ink)">${fmtHora(activo.hora_estimada_salida)}</b></p>
+        <button class="btn btn-danger btn-big" onclick="ficharSalida('${activo.id}', false)">FICHAR SALIDA</button>
+      </div>
+      ${renderHistorial()}
+    `;
+  } else {
+    cont.innerHTML = `
+      ${renderClimaCard()}
+      ${cuotaCard}
+      <div class="card">
+        <h2>Fichar ingreso al agua</h2>
+        <p class="hint">${cuotaVencida ? 'Con la contribución vencida solo podés usar tu propio equipo.' : 'Elegí el equipo que vas a usar y estimá tu hora de salida — como el estacionamiento medido.'}</p>
+        <div class="row3">
+          <label class="field"><span>Embarcación</span><select id="nf-embarcacion"></select></label>
+          <label class="field"><span>Remo</span><select id="nf-remo"></select></label>
+          <label class="field"><span>Chaleco</span><select id="nf-chaleco"></select></label>
+        </div>
+        <label class="field" style="margin-top:10px;"><span>Hora estimada de salida</span><input type="time" id="nf-hora" value="${horaMasMinutos(90)}"/></label>
+        <p class="errtext" id="nf-err"></p>
+        <button class="btn btn-primary btn-big" style="margin-top:14px;" onclick="ficharIngreso()">FICHAR INGRESO</button>
+      </div>
+      ${renderHistorial()}
+    `;
+    refreshEquipoSelect('nf-embarcacion','embarcacion', cuotaVencida);
+    refreshEquipoSelect('nf-remo','remo', cuotaVencida);
+    refreshEquipoSelect('nf-chaleco','chaleco', cuotaVencida);
+  }
+}
+function renderMisCredenciales(){
+  if (credencialesPropias.length === 0){
+    return '<div class="card"><h2>Mis certificados</h2><p class="hint" style="margin:0;">¡Todavía no tenés ningún certificado! Estate atento a las novedades para enterarte cuándo conseguirlos 😉</p></div>';
+  }
+  const hoy = fechaLocal(nowIso());
+  return `<div class="card"><h2>Mis certificados</h2>${
+    credencialesPropias.map(c => {
+      const vencida = c.vencimiento && c.vencimiento < hoy;
+      return `<div class="history-item"><span>${c.nombre}${c.certificado_por ? ' <span class="hint" style="margin:0;">— '+c.certificado_por+'</span>' : ''}${vencida ? ' <span class="tag-esp" style="color:var(--danger);border-color:var(--danger);">vencida</span>' : ''}</span><b>${c.fecha}${c.vencimiento ? ' → vence ' + c.vencimiento : ''}</b></div>`;
+    }).join('')
+  }</div>`;
+}
+function renderHistorial(){
+  const cerrados = fichajes.filter(f=>f.socio_id===session.user.id && f.estado==='cerrado').slice(0,5);
+  if (cerrados.length===0) return '';
+  return `<div class="card"><h2>Historial reciente</h2>${
+    cerrados.map(f=>`<div class="history-item"><span>${labelDe(f.embarcacion_id,'embarcacion')} · ${labelDe(f.remo_id,'remo')} · ${labelDe(f.chaleco_id,'chaleco')}</span><b>${fmtHora(f.hora_ingreso)} → ${f.hora_salida_real ? fmtHora(f.hora_salida_real) : '—'}</b></div>`).join('')
+  }</div>`;
+}
+
+function renderStaffSummary(){
+  const cont = document.getElementById('staff-summary');
+  const grupos = [
+    { label:'Kayaks en uso', filtro: e=>e.tipo==='embarcacion' && e.subtipo==='kayak' },
+    { label:'SUP en uso', filtro: e=>e.tipo==='embarcacion' && e.subtipo==='sup' },
+    { label:'Remos en uso', filtro: e=>e.tipo==='remo' },
+    { label:'Chalecos en uso', filtro: e=>e.tipo==='chaleco' },
+  ];
+  cont.innerHTML = grupos.map(g=>{
+    const items = equipo.filter(g.filtro);
+    const total = items.length;
+    const enUso = items.filter(e=>e.estado==='en_uso').length;
+    return `<div class="summary-tile"><div class="n">${enUso}/${total}</div><div class="l">${g.label}</div></div>`;
+  }).join('');
+}
+function renderStaffBoard(){
+  const cont = document.getElementById('staff-board');
+  const activos = fichajes.filter(f=>f.estado==='en_agua').sort((a,b)=> new Date(a.hora_ingreso) - new Date(b.hora_ingreso));
+  if (activos.length===0){ cont.innerHTML = '<p class="empty">No hay nadie en el agua en este momento.</p>'; return; }
+  cont.innerHTML = activos.map(f=>{
+    const est = estadoFichaje(f);
+    const dot = est==='ok'?'dot-ok':est==='recordatorio'?'dot-warn':'dot-danger';
+    const nombreSocio = f.perfiles ? [f.perfiles.nombre, f.perfiles.apellido].filter(Boolean).join(' ') : '';
+    const nombre = f.es_esporadico ? (f.nombre_esporadico||'Esporádico') : (nombreSocio || 'Adherente');
+    return `
+      <div class="board-row">
+        <div class="board-name"><span class="status-dot ${dot}"></span>${nombre}${f.es_esporadico ? '<span class="tag-esp">esporádico</span>' : ''}</div>
+        <div class="board-equip">
+          <span class="equip-tag">🛶 ${labelDe(f.embarcacion_id,'embarcacion')}</span>
+          <span class="equip-tag">🪛 ${labelDe(f.remo_id,'remo')}</span>
+          <span class="equip-tag">🦺 ${labelDe(f.chaleco_id,'chaleco')}</span>
+        </div>
+        <div class="board-time">Ingreso <b>${fmtHora(f.hora_ingreso)}</b> · Sale <b>${fmtHora(f.hora_estimada_salida)}</b></div>
+        <button class="btn btn-ghost" onclick="ficharSalida('${f.id}', true)">Marcar salida</button>
+      </div>`;
+  }).join('');
+}
+
+function renderStaffHistory(){
+  const cont = document.getElementById('staff-history');
+  const inputFecha = document.getElementById('hist-fecha');
+  if (!cont || !inputFecha) return;
+  if (!inputFecha.value) inputFecha.value = fechaLocal(nowIso());
+  const fecha = inputFecha.value;
+  const delDia = fichajes
+    .filter(f => fechaLocal(f.hora_ingreso) === fecha)
+    .sort((a,b) => new Date(b.hora_ingreso) - new Date(a.hora_ingreso));
+  if (delDia.length === 0){ cont.innerHTML = '<p class="empty">No hay fichajes registrados ese día.</p>'; return; }
+  cont.innerHTML = delDia.map(f=>{
+    const nombreSocio = f.perfiles ? [f.perfiles.nombre, f.perfiles.apellido].filter(Boolean).join(' ') : '';
+    const nombre = f.es_esporadico ? (f.nombre_esporadico||'Esporádico') : (nombreSocio || 'Adherente');
+    const salida = f.estado === 'cerrado' && f.hora_salida_real ? fmtHora(f.hora_salida_real) : 'sigue en el agua';
+    return `
+      <div class="board-row">
+        <div class="board-name">${nombre}${f.es_esporadico ? '<span class="tag-esp">esporádico</span>' : ''}</div>
+        <div class="board-equip">
+          <span class="equip-tag">🛶 ${labelDe(f.embarcacion_id,'embarcacion')}</span>
+          <span class="equip-tag">🪛 ${labelDe(f.remo_id,'remo')}</span>
+          <span class="equip-tag">🦺 ${labelDe(f.chaleco_id,'chaleco')}</span>
+        </div>
+        <div class="board-time">Ingreso <b>${fmtHora(f.hora_ingreso)}</b> · Salida <b>${salida}</b></div>
+      </div>`;
+  }).join('');
+}
+
+// =====================================================================
+// ACCIONES DE ESCRITURA
+// =====================================================================
+async function ficharIngreso(){
+  const errEl = document.getElementById('nf-err');
+  const hora = document.getElementById('nf-hora').value;
+  if (!hora){ errEl.textContent = 'Poné una hora estimada de salida.'; return; }
+  const embarcacion_id = resolverSeleccion('nf-embarcacion');
+  const remo_id = resolverSeleccion('nf-remo');
+  const chaleco_id = resolverSeleccion('nf-chaleco');
+  if (perfil.cuota_vencida && (embarcacion_id || remo_id || chaleco_id)){
+    errEl.textContent = 'Tu contribución está vencida — solo podés fichar con equipo propio.';
+    return;
+  }
+  const [hh,mm] = hora.split(':').map(Number);
+  const est = new Date(); est.setHours(hh,mm,0,0);
+  if (est.getTime() < Date.now()) est.setDate(est.getDate()+1);
+
+  const { error } = await sb.from('fichajes').insert({
+    socio_id: session.user.id, es_esporadico: false,
+    embarcacion_id, remo_id, chaleco_id,
+    hora_estimada_salida: est.toISOString(), marcado_por: 'socio'
+  });
+  if (error){ errEl.textContent = 'No se pudo fichar: ' + error.message; return; }
+  await Promise.all([embarcacion_id, remo_id, chaleco_id].filter(Boolean).map(id => sb.from('equipo').update({estado:'en_uso'}).eq('id', id)));
+  toast('Ingreso fichado. ¡Buena navegada!');
+  await cargarDatos(); renderSocioContent();
+  if (perfil.rol==='staff'||perfil.rol==='admin'){ renderStaffSummary(); renderStaffBoard(); renderStaffHistory(); }
+}
+
+async function ficharSalida(fichajeId, desdeStaff){
+  const f = fichajes.find(x=>x.id===fichajeId);
+  if (!f) return;
+  const { error } = await sb.from('fichajes').update({ hora_salida_real: nowIso(), estado:'cerrado', marcado_por: desdeStaff?'staff':'socio' }).eq('id', fichajeId);
+  if (error){ toast('No se pudo marcar la salida: ' + error.message); return; }
+  await Promise.all([f.embarcacion_id, f.remo_id, f.chaleco_id].filter(Boolean).map(id => sb.from('equipo').update({estado:'disponible'}).eq('id', id)));
+  toast(desdeStaff ? 'Salida marcada por staff.' : 'Salida fichada. ¡Bienvenido a tierra!');
+  await cargarDatos(); renderSocioContent();
+  if (perfil.rol==='staff'||perfil.rol==='admin'){ renderStaffSummary(); renderStaffBoard(); renderStaffHistory(); }
+}
+
+async function registrarEsporadico(){
+  const errEl = document.getElementById('esp-err');
+  const nombre = document.getElementById('esp-nombre').value.trim();
+  const dni = document.getElementById('esp-dni').value.trim();
+  const hora = document.getElementById('esp-hora').value;
+  if (!nombre){ errEl.textContent = 'Falta el nombre.'; return; }
+  if (!hora){ errEl.textContent = 'Poné una hora estimada de salida.'; return; }
+  const embarcacion_id = resolverSeleccion('esp-embarcacion');
+  const remo_id = resolverSeleccion('esp-remo');
+  const chaleco_id = resolverSeleccion('esp-chaleco');
+  const [hh,mm] = hora.split(':').map(Number);
+  const est = new Date(); est.setHours(hh,mm,0,0);
+  if (est.getTime() < Date.now()) est.setDate(est.getDate()+1);
+
+  const { error } = await sb.from('fichajes').insert({
+    socio_id: null, es_esporadico: true, nombre_esporadico: nombre, dni_esporadico: dni,
+    embarcacion_id, remo_id, chaleco_id,
+    hora_estimada_salida: est.toISOString(), marcado_por: 'staff'
+  });
+  if (error){ errEl.textContent = 'No se pudo registrar: ' + error.message; return; }
+  await Promise.all([embarcacion_id, remo_id, chaleco_id].filter(Boolean).map(id => sb.from('equipo').update({estado:'en_uso'}).eq('id', id)));
+  closeModal('modal-esporadico');
+  document.getElementById('esp-nombre').value=''; document.getElementById('esp-dni').value='';
+  toast('Ingreso esporádico registrado.');
+  await cargarDatos(); renderStaffSummary(); renderStaffBoard(); renderStaffHistory();
+}
+
+boot();
+
+if ('serviceWorker' in navigator){
+  window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(()=>{}); });
+}
+
+// =====================================================================
+// NOTIFICACIONES PUSH (recordatorio de salida + alerta a staff)
+// =====================================================================
+function urlBase64ToUint8Array(base64String){
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
+  return outputArray;
+}
+
+async function renderPushBanner(){
+  const cont = document.getElementById('push-banner');
+  if (!cont) return;
+  const soportado = 'serviceWorker' in navigator && 'PushManager' in window;
+  if (!soportado){ cont.innerHTML = ''; return; }
+  if (Notification.permission === 'granted'){
+    // Ya tiene permiso del navegador; nos aseguramos de que la suscripción
+    // esté guardada en la base (por si se perdió, ej. tras reinstalar la PWA).
+    asegurarSuscripcion().catch(()=>{});
+    cont.innerHTML = '';
+    return;
+  }
+  if (Notification.permission === 'denied'){
+    cont.innerHTML = `<p class="hint" style="margin:0 0 4px;">🔕 Tenés las notificaciones bloqueadas en este navegador. Activalas desde la configuración del sitio si querés recibir avisos.</p>`;
+    return;
+  }
+  cont.innerHTML = `
+    <div class="card" style="padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+      <span class="hint" style="margin:0;">🔔 Activá las notificaciones para recibir el recordatorio de salida.</span>
+      <button class="btn btn-primary" onclick="activarNotificaciones()">Activar notificaciones</button>
+    </div>`;
+}
+
+async function activarNotificaciones(){
+  try{
+    const permiso = await Notification.requestPermission();
+    if (permiso !== 'granted'){ toast('No se activaron las notificaciones.'); renderPushBanner(); return; }
+    await asegurarSuscripcion();
+    toast('¡Notificaciones activadas!');
+  } catch(e){
+    toast('No se pudo activar: ' + e.message);
+  }
+  renderPushBanner();
+}
+
+async function asegurarSuscripcion(){
+  const reg = await navigator.serviceWorker.ready;
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub){
+    sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+    });
+  }
+  const json = sub.toJSON();
+  await sb.from('push_subscriptions').upsert({
+    user_id: session.user.id,
+    endpoint: json.endpoint,
+    p256dh: json.keys.p256dh,
+    auth: json.keys.auth
+  }, { onConflict: 'endpoint' });
+}
+
+// =====================================================================
+// INVENTARIO
+// =====================================================================
+const GRUPOS_INVENTARIO = {
+  kayak: { filtro: e=>e.tipo==='embarcacion' && e.subtipo==='kayak', tipo:'embarcacion', subtipo:'kayak' },
+  sup: { filtro: e=>e.tipo==='embarcacion' && e.subtipo==='sup', tipo:'embarcacion', subtipo:'sup' },
+  remo: { filtro: e=>e.tipo==='remo', tipo:'remo', subtipo:null },
+  chaleco: { filtro: e=>e.tipo==='chaleco', tipo:'chaleco', subtipo:null },
+};
+
+function renderStaffInventario(){
+  const cont = document.getElementById('staff-inventario');
+  if (!cont) return;
+  const g = GRUPOS_INVENTARIO[invTabActual] || GRUPOS_INVENTARIO.kayak;
+  const items = equipo.filter(g.filtro).sort((a,b)=>a.numero-b.numero);
+  if (items.length===0){ cont.innerHTML = '<p class="empty">Todavía no cargaste ningún equipo acá.</p>'; return; }
+  cont.innerHTML = items.map(e => `
+    <div class="board-row" style="grid-template-columns:1fr auto;">
+      <div class="board-name">${labelEquipoItem(e)}${e.estado==='de_baja' ? ' <span class="tag-esp">de baja</span>' : ''}</div>
+      <select onchange="cambiarEstadoEquipo('${e.id}', this.value)">
+        <option value="disponible" ${e.estado==='disponible'?'selected':''}>Disponible</option>
+        <option value="en_uso" ${e.estado==='en_uso'?'selected':''}>En uso</option>
+        <option value="mantenimiento" ${e.estado==='mantenimiento'?'selected':''}>En mantenimiento</option>
+        <option value="de_baja" ${e.estado==='de_baja'?'selected':''}>De baja</option>
+      </select>
+    </div>`).join('');
+}
+
+function onCambioTipoEquipo(){
+  const tipo = document.getElementById('eq-tipo').value;
+  document.getElementById('eq-subtipo-wrap').style.display = tipo==='embarcacion' ? '' : 'none';
+}
+
+function abrirModalEquipo(){
+  const g = GRUPOS_INVENTARIO[invTabActual] || GRUPOS_INVENTARIO.kayak;
+  document.getElementById('eq-tipo').value = g.tipo;
+  document.getElementById('eq-subtipo').value = g.subtipo || 'kayak';
+  document.getElementById('eq-numero').value = '';
+  document.getElementById('eq-err').textContent = '';
+  onCambioTipoEquipo();
+  openModal('modal-equipo');
+}
+
+function refrescarSelectsFichaje(){
+  refreshEquipoSelect('nf-embarcacion','embarcacion', !!(perfil && perfil.cuota_vencida));
+  refreshEquipoSelect('nf-remo','remo', !!(perfil && perfil.cuota_vencida));
+  refreshEquipoSelect('nf-chaleco','chaleco', !!(perfil && perfil.cuota_vencida));
+  refreshEquipoSelect('esp-embarcacion','embarcacion');
+  refreshEquipoSelect('esp-remo','remo');
+  refreshEquipoSelect('esp-chaleco','chaleco');
+}
+
+async function agregarEquipo(){
+  const errEl = document.getElementById('eq-err');
+  const tipo = document.getElementById('eq-tipo').value;
+  const subtipo = tipo==='embarcacion' ? document.getElementById('eq-subtipo').value : null;
+  const numero = parseInt(document.getElementById('eq-numero').value, 10);
+  if (!numero || numero < 1){ errEl.textContent = 'Poné un número válido.'; return; }
+  const yaExiste = equipo.some(e => e.tipo===tipo && (e.subtipo||null)===subtipo && e.numero===numero);
+  if (yaExiste){ errEl.textContent = 'Ya existe un equipo con ese número.'; return; }
+  const { error } = await sb.from('equipo').insert({ tipo, subtipo, numero, estado: 'disponible' });
+  if (error){ errEl.textContent = 'No se pudo agregar: ' + error.message; return; }
+  closeModal('modal-equipo');
+  toast('Equipo agregado.');
+  await cargarDatos();
+  renderStaffInventario(); renderStaffSummary(); renderStaffBoard();
+  refrescarSelectsFichaje();
+}
+
+async function cambiarEstadoEquipo(id, estado){
+  const { error } = await sb.from('equipo').update({ estado }).eq('id', id);
+  if (error){ toast('No se pudo actualizar: ' + error.message); return; }
+  toast('Estado actualizado.');
+  await cargarDatos();
+  renderStaffInventario(); renderStaffSummary(); renderStaffBoard();
+  refrescarSelectsFichaje();
+}
+
+// =====================================================================
+// CREDENCIALES
+// =====================================================================
+function onCambioTipoCredencial(){
+  const v = document.getElementById('cred-tipo-select').value;
+  document.getElementById('cred-otro-wrap').hidden = v !== 'otro';
+}
+
+function refrescarSelectSociosCredencial(){
+  const sel = document.getElementById('cred-socio-select');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Elegí un adherente…</option>' +
+    socios.map(s=>`<option value="${s.id}">${[s.nombre,s.apellido].filter(Boolean).join(' ')||s.dni||'Adherente'}</option>`).join('');
+}
+
+function renderStaffCredenciales(){
+  const cont = document.getElementById('staff-credenciales');
+  if (!cont) return;
+  if (credenciales.length === 0){ cont.innerHTML = '<p class="empty">Todavía no se cargó ninguna credencial.</p>'; return; }
+  const hoy = fechaLocal(nowIso());
+  cont.innerHTML = credenciales.map(c => {
+    const nombreSocio = c.perfiles ? [c.perfiles.nombre, c.perfiles.apellido].filter(Boolean).join(' ') : 'Adherente';
+    const vencida = c.vencimiento && c.vencimiento < hoy;
+    return `
+      <div class="board-row" style="grid-template-columns:1.2fr 1.3fr 1fr auto;">
+        <div class="board-name">${nombreSocio || 'Adherente'}</div>
+        <div>${c.nombre}${c.certificado_por ? ' <span class="hint" style="margin:0;">— cert. por '+c.certificado_por+'</span>' : ''}</div>
+        <div class="hint" style="margin:0;">${c.fecha}${c.vencimiento ? ' · vence '+c.vencimiento : ''}${vencida ? ' · <b style="color:var(--danger);">vencida</b>' : ''}</div>
+        <button class="btn btn-ghost" onclick="borrarCredencial('${c.id}')">Quitar</button>
+      </div>`;
+  }).join('');
+}
+
+async function agregarCredencial(){
+  const errEl = document.getElementById('cred-err');
+  const socioId = document.getElementById('cred-socio-select').value;
+  const tipoSel = document.getElementById('cred-tipo-select').value;
+  const nombre = tipoSel === 'otro' ? document.getElementById('cred-otro').value.trim() : tipoSel;
+  const fecha = document.getElementById('cred-fecha').value;
+  const vencimiento = document.getElementById('cred-vencimiento').value || null;
+  const certificadoPor = document.getElementById('cred-certificador').value.trim() || null;
+  if (!socioId){ errEl.textContent = 'Elegí un adherente.'; return; }
+  if (!nombre){ errEl.textContent = 'Falta el nombre de la credencial.'; return; }
+  if (!fecha){ errEl.textContent = 'Poné la fecha.'; return; }
+  errEl.textContent = '';
+  const { error } = await sb.from('credenciales').insert({
+    socio_id: socioId, nombre, fecha, vencimiento, certificado_por: certificadoPor, registrado_por: session.user.id
+  });
+  if (error){ errEl.textContent = 'No se pudo agregar: ' + error.message; return; }
+  document.getElementById('cred-otro').value = '';
+  document.getElementById('cred-vencimiento').value = '';
+  document.getElementById('cred-certificador').value = '';
+  toast('Credencial agregada.');
+  await cargarDatosStaffCredenciales(); renderStaffCredenciales();
+}
+
+async function borrarCredencial(id){
+  const { error } = await sb.from('credenciales').delete().eq('id', id);
+  if (error){ toast('No se pudo quitar: ' + error.message); return; }
+  toast('Credencial quitada.');
+  await cargarDatosStaffCredenciales(); renderStaffCredenciales();
+}
+
+// =====================================================================
+// ANUNCIOS / NOVEDADES
+// =====================================================================
+async function cargarAnuncios(){
+  const [ra, rl] = await Promise.all([
+    sb.from('anuncios').select('*').order('created_at', { ascending:false }),
+    sb.from('anuncio_likes').select('*')
+  ]);
+  if (ra.error){ console.error('Error leyendo anuncios:', ra.error.message); return; }
+  anuncios = ra.data || [];
+  anuncioLikes = rl.data || [];
+}
+function tiempoRelativo(iso){
+  const d = new Date(iso);
+  const seg = Math.floor((Date.now() - d.getTime()) / 1000);
+  if (seg < 60) return 'recién';
+  const min = Math.floor(seg / 60);
+  if (min < 60) return `hace ${min} min`;
+  const hs = Math.floor(min / 60);
+  if (hs < 24) return `hace ${hs} h`;
+  const dias = Math.floor(hs / 24);
+  if (dias < 7) return `hace ${dias} d`;
+  return d.toLocaleDateString('es-AR');
+}
+function fechaCorta(fecha){
+  const d = new Date(fecha + 'T00:00:00');
+  return d.toLocaleDateString('es-AR');
+}
+function likesDe(anuncioId){ return anuncioLikes.filter(l => l.anuncio_id === anuncioId); }
+function yoLikeeEste(anuncioId){ return anuncioLikes.some(l => l.anuncio_id === anuncioId && l.socio_id === session.user.id); }
+function renderAnunciosSocio(){
+  const cont = document.getElementById('socio-anuncios');
+  if (!cont) return;
+  if (anuncios.length === 0){ cont.innerHTML = '<p class="empty">No hay anuncios por ahora.</p>'; return; }
+  cont.innerHTML = anuncios.map(a => {
+    const cantLikes = likesDe(a.id).length;
+    const yaLike = yoLikeeEste(a.id);
+    return `
+    <div class="post">
+      <div class="post-head">
+        <div class="post-avatar"><img src="icon-192.png" alt=""/></div>
+        <div class="post-who">
+          <b>Fundación Kosten</b>
+          <span>${tiempoRelativo(a.created_at)} · vigente hasta el ${fechaCorta(a.fecha_vigencia_hasta)}</span>
+        </div>
+      </div>
+      <div class="post-title">${a.titulo}</div>
+      <div class="post-body">${a.cuerpo}</div>
+      ${a.imagen_url ? `<img class="post-img" src="${a.imagen_url}" alt="">` : ''}
+      <div class="post-foot">
+        <button class="like-btn ${yaLike ? 'liked' : ''}" onclick="toggleLikeAnuncio('${a.id}')">
+          <span class="heart">${yaLike ? '❤️' : '🤍'}</span> Me gusta${cantLikes > 0 ? ` · ${cantLikes}` : ''}
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function renderStaffAnuncios(){
+  const cont = document.getElementById('staff-anuncios');
+  if (!cont) return;
+  if (anuncios.length === 0){ cont.innerHTML = '<p class="empty">No hay anuncios cargados.</p>'; return; }
+  cont.innerHTML = anuncios.map(a => `
+    <div class="board-row" style="grid-template-columns:auto 1.6fr 1fr auto;align-items:center;">
+      ${a.imagen_url ? `<img src="${a.imagen_url}" alt="" style="width:44px;height:44px;object-fit:cover;border-radius:8px;">` : '<div style="width:44px;"></div>'}
+      <div>
+        <div class="board-name">${a.titulo}</div>
+        <div class="hint" style="margin:2px 0 0;">${a.cuerpo}</div>
+        <div class="hint" style="margin:2px 0 0;">❤️ ${likesDe(a.id).length}</div>
+      </div>
+      <div class="hint" style="margin:0;">Hasta ${fechaCorta(a.fecha_vigencia_hasta)}</div>
+      <button class="btn btn-ghost" onclick="borrarAnuncioManual('${a.id}')">Quitar</button>
+    </div>`).join('');
+}
+async function toggleLikeAnuncio(anuncioId){
+  const yaLike = yoLikeeEste(anuncioId);
+  if (yaLike){
+    await sb.from('anuncio_likes').delete().eq('anuncio_id', anuncioId).eq('socio_id', session.user.id);
+  } else {
+    await sb.from('anuncio_likes').insert({ anuncio_id: anuncioId, socio_id: session.user.id });
+  }
+  await cargarAnuncios();
+  renderAnunciosSocio();
+  if (perfil.rol === 'staff' || perfil.rol === 'admin') renderStaffAnuncios();
+}
+async function agregarAnuncio(){
+  const errEl = document.getElementById('an-err');
+  const btn = document.getElementById('an-btn-publicar');
+  const titulo = document.getElementById('an-titulo').value.trim();
+  const cuerpo = document.getElementById('an-cuerpo').value.trim();
+  const vigencia = document.getElementById('an-vigencia').value;
+  const archivo = document.getElementById('an-imagen').files[0];
+  errEl.textContent = '';
+  if (!titulo){ errEl.textContent = 'Poné un título.'; return; }
+  if (!cuerpo){ errEl.textContent = 'Poné el detalle del anuncio.'; return; }
+  if (!vigencia){ errEl.textContent = 'Elegí hasta cuándo se muestra.'; return; }
+  btn.disabled = true;
+  let imagen_url = null;
+  if (archivo){
+    const ruta = `${Date.now()}-${archivo.name}`.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+    const { error: errSubida } = await sb.storage.from('anuncios').upload(ruta, archivo);
+    if (errSubida){
+      errEl.textContent = 'No se pudo subir la foto: ' + errSubida.message;
+      btn.disabled = false;
+      return;
+    }
+    imagen_url = sb.storage.from('anuncios').getPublicUrl(ruta).data.publicUrl;
+  }
+  const { error } = await sb.from('anuncios').insert({
+    titulo, cuerpo, fecha_vigencia_hasta: vigencia, creado_por: session.user.id, imagen_url
+  });
+  btn.disabled = false;
+  if (error){ errEl.textContent = 'No se pudo publicar: ' + error.message; return; }
+  document.getElementById('an-titulo').value = '';
+  document.getElementById('an-cuerpo').value = '';
+  document.getElementById('an-imagen').value = '';
+  document.getElementById('an-vigencia').value = fechaLocal(nowIso());
+  toast('Anuncio publicado — se les avisa a los adherentes.');
+  await cargarAnuncios(); renderStaffAnuncios(); renderAnunciosSocio();
+}
+async function borrarAnuncioManual(id){
+  const { error } = await sb.from('anuncios').delete().eq('id', id);
+  if (error){ toast('No se pudo quitar: ' + error.message); return; }
+  toast('Anuncio quitado.');
+  await cargarAnuncios(); renderStaffAnuncios(); renderAnunciosSocio();
+}
+
+// =====================================================================
+// BITÁCORA (historial personal editable del socio)
+// =====================================================================
+function datetimeLocalDeIso(iso){
+  if (!iso) return '';
+  const d = new Date(iso);
+  const local = new Date(d.getTime() - d.getTimezoneOffset()*60000);
+  return local.toISOString().slice(0,16);
+}
+function isoDeDatetimeLocal(valor){
+  if (!valor) return null;
+  return new Date(valor).toISOString();
+}
+function renderBitacora(){
+  const cont = document.getElementById('socio-bitacora');
+  if (!cont) return;
+  const propios = fichajes
+    .filter(f => f.socio_id === session.user.id)
+    .sort((a,b) => new Date(b.hora_ingreso) - new Date(a.hora_ingreso));
+
+  const formNuevo = bitacoraNuevoAbierto ? `
+    <div class="card" style="border-color:var(--accent);">
+      <h2>Cargar ingreso pasado</h2>
+      <p class="hint">Para dejar registrado un ingreso que no fichaste en su momento.</p>
+      <div class="row2">
+        <label class="field"><span>Entrada</span><input type="datetime-local" id="bit-nuevo-ingreso"/></label>
+        <label class="field"><span>Salida</span><input type="datetime-local" id="bit-nuevo-salida"/></label>
+      </div>
+      <label class="field" style="margin-top:10px;"><span>Nota (opcional)</span><input type="text" id="bit-nuevo-nota" placeholder="Ej: salida grupal, se olvidó fichar"/></label>
+      <p class="errtext" id="bit-nuevo-err"></p>
+      <div class="modal-actions" style="margin-top:12px;">
+        <button class="btn btn-ghost" onclick="cancelarNuevoRegistroBitacora()">Cancelar</button>
+        <button class="btn btn-primary" onclick="guardarNuevoRegistroBitacora()">Guardar</button>
+      </div>
+    </div>` : `
+    <button class="btn btn-ghost" onclick="abrirNuevoRegistroBitacora()">+ Cargar ingreso pasado</button>`;
+
+  if (propios.length === 0){
+    cont.innerHTML = formNuevo + '<p class="empty">Todavía no tenés ingresos registrados.</p>';
+    return;
+  }
+
+  cont.innerHTML = formNuevo + propios.map(f => {
+    if (bitacoraEditando === f.id){
+      return `
+        <div class="card" style="border-color:var(--accent);">
+          <div class="row2">
+            <label class="field"><span>Entrada</span><input type="datetime-local" id="bit-edit-ingreso-${f.id}" value="${datetimeLocalDeIso(f.hora_ingreso)}"/></label>
+            <label class="field"><span>Salida</span><input type="datetime-local" id="bit-edit-salida-${f.id}" value="${datetimeLocalDeIso(f.hora_salida_real)}" ${f.estado==='en_agua' ? 'disabled' : ''}/></label>
+          </div>
+          <label class="field" style="margin-top:10px;"><span>Nota</span><input type="text" id="bit-edit-nota-${f.id}" value="${f.nota ? f.nota.replace(/"/g,'&quot;') : ''}"/></label>
+          <p class="errtext" id="bit-edit-err-${f.id}"></p>
+          <div class="modal-actions" style="margin-top:12px;">
+            <button class="btn btn-ghost" onclick="cancelarEdicionBitacora()">Cancelar</button>
+            <button class="btn btn-primary" onclick="guardarBitacora('${f.id}')">Guardar</button>
+          </div>
+        </div>`;
+    }
+    const rango = f.estado === 'en_agua'
+      ? fmtHora(f.hora_ingreso) + ' → en el agua'
+      : fmtHora(f.hora_ingreso) + ' → ' + (f.hora_salida_real ? fmtHora(f.hora_salida_real) : '—');
+    return `
+      <div class="history-item">
+        <span>${fechaLocal(f.hora_ingreso)} · ${rango}${f.cargado_manual ? ' <span class="hint" style="margin:0;">(cargado a mano)</span>' : ''}${f.nota ? '<br><span class="hint" style="margin:0;">📝 '+f.nota+'</span>' : ''}</span>
+        <button class="btn btn-ghost" ${f.estado==='en_agua' ? 'disabled title="No se puede editar un fichaje activo"' : ''} onclick="editarBitacora('${f.id}')">Editar</button>
+      </div>`;
+  }).join('');
+}
+function abrirNuevoRegistroBitacora(){
+  bitacoraNuevoAbierto = true;
+  bitacoraEditando = null;
+  renderBitacora();
+}
+function cancelarNuevoRegistroBitacora(){
+  bitacoraNuevoAbierto = false;
+  renderBitacora();
+}
+async function guardarNuevoRegistroBitacora(){
+  const errEl = document.getElementById('bit-nuevo-err');
+  const ingreso = document.getElementById('bit-nuevo-ingreso').value;
+  const salida = document.getElementById('bit-nuevo-salida').value;
+  const nota = document.getElementById('bit-nuevo-nota').value.trim() || null;
+  errEl.textContent = '';
+  if (!ingreso || !salida){ errEl.textContent = 'Completá entrada y salida.'; return; }
+  const ingresoIso = isoDeDatetimeLocal(ingreso);
+  const salidaIso = isoDeDatetimeLocal(salida);
+  if (new Date(salidaIso) <= new Date(ingresoIso)){ errEl.textContent = 'La salida tiene que ser después de la entrada.'; return; }
+  const { error } = await sb.from('fichajes').insert({
+    socio_id: session.user.id,
+    es_esporadico: false,
+    hora_ingreso: ingresoIso,
+    hora_estimada_salida: salidaIso,
+    hora_salida_real: salidaIso,
+    marcado_por: 'socio',
+    estado: 'cerrado',
+    cargado_manual: true,
+    nota,
+  });
+  if (error){ errEl.textContent = 'No se pudo guardar: ' + error.message; return; }
+  bitacoraNuevoAbierto = false;
+  toast('Registro agregado a tu bitácora.');
+  await cargarDatos(); renderBitacora();
+}
+function editarBitacora(id){
+  bitacoraEditando = id;
+  bitacoraNuevoAbierto = false;
+  renderBitacora();
+}
+function cancelarEdicionBitacora(){
+  bitacoraEditando = null;
+  renderBitacora();
+}
+async function guardarBitacora(id){
+  const errEl = document.getElementById('bit-edit-err-'+id);
+  const ingreso = document.getElementById('bit-edit-ingreso-'+id).value;
+  const salidaEl = document.getElementById('bit-edit-salida-'+id);
+  const salida = salidaEl.value;
+  const nota = document.getElementById('bit-edit-nota-'+id).value.trim() || null;
+  errEl.textContent = '';
+  if (!ingreso){ errEl.textContent = 'Falta la fecha/hora de entrada.'; return; }
+  const payload = { hora_ingreso: isoDeDatetimeLocal(ingreso), nota };
+  if (!salidaEl.disabled && salida){
+    if (new Date(isoDeDatetimeLocal(salida)) <= new Date(payload.hora_ingreso)){
+      errEl.textContent = 'La salida tiene que ser después de la entrada.';
+      return;
+    }
+    payload.hora_salida_real = isoDeDatetimeLocal(salida);
+  }
+  const { error } = await sb.from('fichajes').update(payload).eq('id', id);
+  if (error){ errEl.textContent = 'No se pudo guardar: ' + error.message; return; }
+  bitacoraEditando = null;
+  toast('Bitácora actualizada.');
+  await cargarDatos(); renderBitacora();
+}
+
+// =====================================================================
+// CUOTAS
+// =====================================================================
+async function pagarCuota(){
+  try{
+    const resp = await fetch(SUPABASE_URL + '/functions/v1/crear-pago-cuota', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + session.access_token, 'apikey': SUPABASE_ANON_KEY }
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.init_point){ toast('No se pudo generar el pago: ' + (data.error||'')); return; }
+    window.open(data.init_point, '_blank');
+  } catch(e){
+    toast('No se pudo generar el pago: ' + e.message);
+  }
+}
+
+function refrescarSelectSocios(){
+  const sel = document.getElementById('cuota-socio-select');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Elegí un adherente…</option>' +
+    socios.map(s=>`<option value="${s.id}">${[s.nombre,s.apellido].filter(Boolean).join(' ')||s.dni||'Adherente'}${s.cuota_vencida?' (vencida)':''}</option>`).join('');
+}
+
+function renderStaffVencidos(){
+  const cont = document.getElementById('staff-vencidos');
+  if (!cont) return;
+  const vencidos = socios.filter(s => s.cuota_vencida);
+  if (vencidos.length === 0){ cont.innerHTML = '<p class="hint" style="margin:0;">Todos los adherentes están al día.</p>'; return; }
+  cont.innerHTML = `<p class="hint" style="margin:0 0 6px;"><b>${vencidos.length}</b> adherente(s) con la contribución vencida:</p>` +
+    vencidos.map(s => `<div class="history-item"><span>${[s.nombre,s.apellido].filter(Boolean).join(' ') || s.dni || 'Adherente'}</span></div>`).join('');
+}
+
+function renderPagosSinAsociar(){
+  const cont = document.getElementById('staff-pagos-sin-asociar');
+  if (!cont) return;
+  if (pagosSinAsociar.length === 0){ cont.innerHTML = ''; return; }
+  cont.innerHTML = `<p class="hint" style="margin:0 0 6px;"><b>Pagos de Mercado Pago sin asociar a ningún adherente:</b></p>` +
+    pagosSinAsociar.map(p => `
+      <div class="board-row" style="grid-template-columns:1.4fr 1fr auto;">
+        <div>
+          <div class="board-name">${p.nombre_pagador || 'Sin nombre'}</div>
+          <div class="hint" style="margin:2px 0 0;">DNI: ${p.dni_recibido||'—'} · Email: ${p.email_pagador||'—'} · $${p.monto??'—'}</div>
+        </div>
+        <select id="asociar-${p.id}"></select>
+        <button class="btn btn-ghost" onclick="asociarPago('${p.id}')">Asociar</button>
+      </div>
+    `).join('');
+  pagosSinAsociar.forEach(p => {
+    const sel = document.getElementById('asociar-'+p.id);
+    if (sel) sel.innerHTML = '<option value="">Elegí un adherente…</option>' + socios.map(s=>`<option value="${s.id}">${[s.nombre,s.apellido].filter(Boolean).join(' ')||s.dni||'Adherente'}</option>`).join('');
+  });
+}
+
+async function marcarCuotaManual(){
+  const socioId = document.getElementById('cuota-socio-select').value;
+  if (!socioId){ toast('Elegí un adherente.'); return; }
+  const periodo = new Date().toISOString().slice(0,7) + '-01';
+  const { error } = await sb.from('cuotas').upsert({
+    socio_id: socioId, periodo, medio: 'manual', fecha_pago: nowIso(), registrado_por: session.user.id
+  }, { onConflict: 'socio_id,periodo' });
+  if (error){ toast('No se pudo marcar: ' + error.message); return; }
+  await sb.from('perfiles').update({ cuota_vencida: false }).eq('id', socioId);
+  toast('Contribución marcada como pagada.');
+  await cargarDatosStaffCuotas(); refrescarSelectSocios(); renderStaffVencidos(); renderPagosSinAsociar();
+}
+
+async function asociarPago(pagoId){
+  const sel = document.getElementById('asociar-'+pagoId);
+  const socioId = sel ? sel.value : '';
+  if (!socioId){ toast('Elegí a qué adherente corresponde.'); return; }
+  const pago = pagosSinAsociar.find(p=>p.id===pagoId);
+  if (!pago) return;
+  const { error: e1 } = await sb.from('cuotas').upsert({
+    socio_id: socioId, periodo: pago.periodo, monto: pago.monto, fecha_pago: pago.fecha_pago,
+    medio: 'mercado_pago', mp_payment_id: pago.mp_payment_id
+  }, { onConflict: 'socio_id,periodo' });
+  if (e1){ toast('No se pudo asociar: ' + e1.message); return; }
+  await sb.from('perfiles').update({ cuota_vencida: false }).eq('id', socioId);
+  await sb.from('pagos_sin_asociar').update({ estado:'asociado', asociado_a: socioId, resuelto_por: session.user.id, resuelto_en: nowIso() }).eq('id', pagoId);
+  toast('Pago asociado.');
+  await cargarDatosStaffCuotas(); refrescarSelectSocios(); renderStaffVencidos(); renderPagosSinAsociar();
+}
+</script>
+</body>
+</html>
