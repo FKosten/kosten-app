@@ -353,7 +353,7 @@ function renderAuth(){
     <div class="top" style="justify-content:center;">
       <div class="brand">
         <img class="logo-mark" src="kosten-wordmark.png" alt="Fundación Kosten">
-        <span class="suffix">Socios</span>
+        <span class="suffix">Adherentes</span>
       </div>
     </div>
     <div class="card center-card">
@@ -419,7 +419,7 @@ function renderNuevaPassword(){
     <div class="top" style="justify-content:center;">
       <div class="brand">
         <img class="logo-mark" src="kosten-wordmark.png" alt="Fundación Kosten">
-        <span class="suffix">Socios</span>
+        <span class="suffix">Adherentes</span>
       </div>
     </div>
     <div class="card center-card">
@@ -492,7 +492,7 @@ async function renderCompletarPerfil(){
     <div class="top" style="justify-content:center;">
       <div class="brand">
         <img class="logo-mark" src="kosten-wordmark.png" alt="Fundación Kosten">
-        <span class="suffix">Socios</span>
+        <span class="suffix">Adherentes</span>
       </div>
     </div>
     <div class="card center-card">
@@ -577,7 +577,7 @@ async function cargarDatosStaffCuotas(){
     sb.from('perfiles').select('id,nombre,apellido,dni,rol,cuota_vencida').eq('rol','socio').order('nombre'),
     sb.from('pagos_sin_asociar').select('*').eq('estado','pendiente').order('created_at', { ascending:false })
   ]);
-  if (e3) toast('Error leyendo socios: '+e3.message);
+  if (e3) toast('Error leyendo adherentes: '+e3.message);
   if (e4) toast('Error leyendo pagos sin asociar: '+e4.message);
   socios = sc || [];
   pagosSinAsociar = ps || [];
@@ -590,7 +590,7 @@ async function renderApp(){
     <div class="top">
       <div class="brand">
         <img class="logo-mark" src="kosten-wordmark.png" alt="Fundación Kosten">
-        <span class="suffix">Socios</span>
+        <span class="suffix">Adherentes</span>
       </div>
       <div style="display:flex;align-items:center;gap:10px;">
         <span class="hello">Hola, <b>${perfil.nombre}</b></span>
@@ -610,7 +610,7 @@ async function renderApp(){
         <button class="tab-btn active" id="sociotab-fichaje" onclick="setSocioTab('fichaje')">Fichaje</button>
         <button class="tab-btn" id="sociotab-bitacora" onclick="setSocioTab('bitacora')">Bitácora</button>
         <button class="tab-btn" id="sociotab-anuncios" onclick="setSocioTab('anuncios')">Anuncios</button>
-        <button class="tab-btn" id="sociotab-cuota" onclick="setSocioTab('cuota')">Mi cuota</button>
+        <button class="tab-btn" id="sociotab-cuota" onclick="setSocioTab('cuota')">Mi contribución</button>
         <button class="tab-btn" id="sociotab-certificados" onclick="setSocioTab('certificados')">Mis certificados</button>
       </div>
 
@@ -624,7 +624,7 @@ async function renderApp(){
         <div id="socio-anuncios"></div>
       </div>
       <div class="panel" id="sociosub-cuota">
-        <div class="card"><h2>Mi cuota</h2><p class="hint">¡Próximamente! No seas impaciente cheee 😄</p></div>
+        <div class="card"><h2>Mi contribución</h2><p class="hint">¡Próximamente! No seas impaciente cheee 😄</p></div>
       </div>
       <div class="panel" id="sociosub-certificados">
         <div id="socio-certificados"></div>
@@ -634,7 +634,7 @@ async function renderApp(){
     <div class="panel" id="panel-staff">
       <div class="tabs" id="staff-tabs">
         <button class="tab-btn active" id="stafftab-fichaje" onclick="setStaffTab('fichaje')">Fichaje</button>
-        <button class="tab-btn" id="stafftab-cuotas" onclick="setStaffTab('cuotas')">Cuotas</button>
+        <button class="tab-btn" id="stafftab-cuotas" onclick="setStaffTab('cuotas')">Contribuciones</button>
         <button class="tab-btn" id="stafftab-inventario" onclick="setStaffTab('inventario')">Inventario</button>
         <button class="tab-btn" id="stafftab-credenciales" onclick="setStaffTab('credenciales')">Credenciales</button>
         <button class="tab-btn" id="stafftab-anuncios" onclick="setStaffTab('anuncios')">Anuncios</button>
@@ -657,7 +657,7 @@ async function renderApp(){
           <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:2px;">
             <div>
               <h2 style="margin-bottom:0;">Historial de fichajes</h2>
-              <p class="hint">Todos los ingresos registrados (socios y esporádicos), del día que elijas.</p>
+              <p class="hint">Todos los ingresos registrados (adherentes y esporádicos), del día que elijas.</p>
             </div>
             <label class="field" style="margin:0;">
               <span>Fecha</span>
@@ -670,10 +670,10 @@ async function renderApp(){
 
       <div class="panel" id="staffsub-cuotas">
         <div class="card">
-          <h2>Cuotas</h2>
-          <p class="hint">El estado de cada socio se actualiza solo con cada pago de Mercado Pago. Para casos manuales (efectivo, un pago que no se pudo identificar solo), usá lo de abajo.</p>
+          <h2>Contribuciones</h2>
+          <p class="hint">El estado de cada adherente se actualiza solo con cada pago de Mercado Pago. Para casos manuales (efectivo, un pago que no se pudo identificar solo), usá lo de abajo.</p>
           <div style="margin-bottom:16px;">
-            <label class="field" style="margin-bottom:8px;"><span>Marcar cuota del mes como pagada</span>
+            <label class="field" style="margin-bottom:8px;"><span>Marcar contribución del mes como pagada</span>
               <select id="cuota-socio-select"></select>
             </label>
             <button class="btn btn-ghost" onclick="marcarCuotaManual()">Marcar como pagada (este mes)</button>
@@ -688,7 +688,7 @@ async function renderApp(){
           <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:2px;">
             <div>
               <h2 style="margin-bottom:0;">Inventario</h2>
-              <p class="hint">Lo que esté "Disponible" es lo que van a poder elegir los socios al fichar.</p>
+              <p class="hint">Lo que esté "Disponible" es lo que van a poder elegir los adherentes al fichar.</p>
             </div>
             <button class="btn btn-primary" onclick="abrirModalEquipo()">+ Agregar equipo</button>
           </div>
@@ -705,9 +705,9 @@ async function renderApp(){
       <div class="panel" id="staffsub-credenciales">
         <div class="card">
           <h2>Agregar credencial</h2>
-          <p class="hint">Cursos, talleres o certificaciones de cada socio (ej. SUP, iniciación náutica, RCP).</p>
+          <p class="hint">Cursos, talleres o certificaciones de cada adherente (ej. SUP, iniciación náutica, RCP).</p>
           <div class="row2">
-            <label class="field"><span>Socio</span><select id="cred-socio-select"></select></label>
+            <label class="field"><span>Adherente</span><select id="cred-socio-select"></select></label>
             <label class="field"><span>Credencial</span>
               <select id="cred-tipo-select" onchange="onCambioTipoCredencial()">
                 <option value="Curso de SUP">Curso de SUP</option>
@@ -738,7 +738,7 @@ async function renderApp(){
       <div class="panel" id="staffsub-anuncios">
         <div class="card">
           <h2>Publicar anuncio</h2>
-          <p class="hint">Se muestra a todos los socios (y les llega una notificación) hasta el día que elijas — después se borra solo.</p>
+          <p class="hint">Se muestra a todos los adherentes (y les llega una notificación) hasta el día que elijas — después se borra solo.</p>
           <label class="field"><span>Título</span><input type="text" id="an-titulo" placeholder="Ej: Clase de revalidación"/></label>
           <label class="field" style="margin-top:10px;"><span>Detalle</span><textarea id="an-cuerpo" rows="3" style="width:100%;font-family:inherit;font-size:0.95rem;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);"></textarea></label>
           <label class="field" style="margin-top:10px;"><span>Mostrar hasta</span><input type="date" id="an-vigencia"/></label>
@@ -757,8 +757,8 @@ async function renderApp(){
         <h3 style="text-align:center;">Mi carnet</h3>
         <div style="text-align:center;">
           <p style="margin:0 0 4px;font-size:1.1rem;"><b>${perfil.nombre} ${perfil.apellido||''}</b></p>
-          <p class="hint" style="margin:0 0 14px;">Socio N.° <b style="color:var(--ink);">${perfil.numero_socio ?? '—'}</b></p>
-          <img src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent('KOSTEN-'+(perfil.numero_socio ?? perfil.id))}" width="220" height="220" alt="Código QR de socio" style="border-radius:12px;background:#fff;padding:10px;"/>
+          <p class="hint" style="margin:0 0 14px;">Adherente N.° <b style="color:var(--ink);">${perfil.numero_socio ?? '—'}</b></p>
+          <img src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent('KOSTEN-'+(perfil.numero_socio ?? perfil.id))}" width="220" height="220" alt="Código QR de adherente" style="border-radius:12px;background:#fff;padding:10px;"/>
         </div>
         <div class="stack" style="margin-top:16px;">
           <label class="field"><span>DNI</span><input type="text" value="${perfil.dni||''}" disabled/></label>
@@ -950,10 +950,10 @@ function renderSocioContent(){
     <div class="card" style="border-color:var(--warn);">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
         <div>
-          <h2 style="margin-bottom:2px;">Cuota vencida</h2>
-          <p class="hint" style="margin:0;">Podés fichar igual usando tu propio equipo. Para usar equipo del club, primero regularizá la cuota.</p>
+          <h2 style="margin-bottom:2px;">Contribución vencida</h2>
+          <p class="hint" style="margin:0;">Podés fichar igual usando tu propio equipo. Para usar equipo del club, primero regularizá la contribución.</p>
         </div>
-        <button class="btn btn-primary" onclick="pagarCuota()">Pagar cuota</button>
+        <button class="btn btn-primary" onclick="pagarCuota()">Pagar contribución</button>
       </div>
     </div>` : '';
   if (activo){
@@ -986,7 +986,7 @@ function renderSocioContent(){
       ${cuotaCard}
       <div class="card">
         <h2>Fichar ingreso al agua</h2>
-        <p class="hint">${cuotaVencida ? 'Con la cuota vencida solo podés usar tu propio equipo.' : 'Elegí el equipo que vas a usar y estimá tu hora de salida — como el estacionamiento medido.'}</p>
+        <p class="hint">${cuotaVencida ? 'Con la contribución vencida solo podés usar tu propio equipo.' : 'Elegí el equipo que vas a usar y estimá tu hora de salida — como el estacionamiento medido.'}</p>
         <div class="row3">
           <label class="field"><span>Embarcación</span><select id="nf-embarcacion"></select></label>
           <label class="field"><span>Remo</span><select id="nf-remo"></select></label>
@@ -1046,7 +1046,7 @@ function renderStaffBoard(){
     const est = estadoFichaje(f);
     const dot = est==='ok'?'dot-ok':est==='recordatorio'?'dot-warn':'dot-danger';
     const nombreSocio = f.perfiles ? [f.perfiles.nombre, f.perfiles.apellido].filter(Boolean).join(' ') : '';
-    const nombre = f.es_esporadico ? (f.nombre_esporadico||'Esporádico') : (nombreSocio || 'Socio');
+    const nombre = f.es_esporadico ? (f.nombre_esporadico||'Esporádico') : (nombreSocio || 'Adherente');
     return `
       <div class="board-row">
         <div class="board-name"><span class="status-dot ${dot}"></span>${nombre}${f.es_esporadico ? '<span class="tag-esp">esporádico</span>' : ''}</div>
@@ -1073,7 +1073,7 @@ function renderStaffHistory(){
   if (delDia.length === 0){ cont.innerHTML = '<p class="empty">No hay fichajes registrados ese día.</p>'; return; }
   cont.innerHTML = delDia.map(f=>{
     const nombreSocio = f.perfiles ? [f.perfiles.nombre, f.perfiles.apellido].filter(Boolean).join(' ') : '';
-    const nombre = f.es_esporadico ? (f.nombre_esporadico||'Esporádico') : (nombreSocio || 'Socio');
+    const nombre = f.es_esporadico ? (f.nombre_esporadico||'Esporádico') : (nombreSocio || 'Adherente');
     const salida = f.estado === 'cerrado' && f.hora_salida_real ? fmtHora(f.hora_salida_real) : 'sigue en el agua';
     return `
       <div class="board-row">
@@ -1099,7 +1099,7 @@ async function ficharIngreso(){
   const remo_id = resolverSeleccion('nf-remo');
   const chaleco_id = resolverSeleccion('nf-chaleco');
   if (perfil.cuota_vencida && (embarcacion_id || remo_id || chaleco_id)){
-    errEl.textContent = 'Tu cuota está vencida — solo podés fichar con equipo propio.';
+    errEl.textContent = 'Tu contribución está vencida — solo podés fichar con equipo propio.';
     return;
   }
   const [hh,mm] = hora.split(':').map(Number);
@@ -1316,8 +1316,8 @@ function onCambioTipoCredencial(){
 function refrescarSelectSociosCredencial(){
   const sel = document.getElementById('cred-socio-select');
   if (!sel) return;
-  sel.innerHTML = '<option value="">Elegí un socio…</option>' +
-    socios.map(s=>`<option value="${s.id}">${[s.nombre,s.apellido].filter(Boolean).join(' ')||s.dni||'Socio'}</option>`).join('');
+  sel.innerHTML = '<option value="">Elegí un adherente…</option>' +
+    socios.map(s=>`<option value="${s.id}">${[s.nombre,s.apellido].filter(Boolean).join(' ')||s.dni||'Adherente'}</option>`).join('');
 }
 
 function renderStaffCredenciales(){
@@ -1326,11 +1326,11 @@ function renderStaffCredenciales(){
   if (credenciales.length === 0){ cont.innerHTML = '<p class="empty">Todavía no se cargó ninguna credencial.</p>'; return; }
   const hoy = fechaLocal(nowIso());
   cont.innerHTML = credenciales.map(c => {
-    const nombreSocio = c.perfiles ? [c.perfiles.nombre, c.perfiles.apellido].filter(Boolean).join(' ') : 'Socio';
+    const nombreSocio = c.perfiles ? [c.perfiles.nombre, c.perfiles.apellido].filter(Boolean).join(' ') : 'Adherente';
     const vencida = c.vencimiento && c.vencimiento < hoy;
     return `
       <div class="board-row" style="grid-template-columns:1.2fr 1.3fr 1fr auto;">
-        <div class="board-name">${nombreSocio || 'Socio'}</div>
+        <div class="board-name">${nombreSocio || 'Adherente'}</div>
         <div>${c.nombre}${c.certificado_por ? ' <span class="hint" style="margin:0;">— cert. por '+c.certificado_por+'</span>' : ''}</div>
         <div class="hint" style="margin:0;">${c.fecha}${c.vencimiento ? ' · vence '+c.vencimiento : ''}${vencida ? ' · <b style="color:var(--danger);">vencida</b>' : ''}</div>
         <button class="btn btn-ghost" onclick="borrarCredencial('${c.id}')">Quitar</button>
@@ -1346,7 +1346,7 @@ async function agregarCredencial(){
   const fecha = document.getElementById('cred-fecha').value;
   const vencimiento = document.getElementById('cred-vencimiento').value || null;
   const certificadoPor = document.getElementById('cred-certificador').value.trim() || null;
-  if (!socioId){ errEl.textContent = 'Elegí un socio.'; return; }
+  if (!socioId){ errEl.textContent = 'Elegí un adherente.'; return; }
   if (!nombre){ errEl.textContent = 'Falta el nombre de la credencial.'; return; }
   if (!fecha){ errEl.textContent = 'Poné la fecha.'; return; }
   errEl.textContent = '';
@@ -1417,7 +1417,7 @@ async function agregarAnuncio(){
   document.getElementById('an-titulo').value = '';
   document.getElementById('an-cuerpo').value = '';
   document.getElementById('an-vigencia').value = fechaLocal(nowIso());
-  toast('Anuncio publicado — se les avisa a los socios.');
+  toast('Anuncio publicado — se les avisa a los adherentes.');
   await cargarAnuncios(); renderStaffAnuncios(); renderAnunciosSocio();
 }
 async function borrarAnuncioManual(id){
@@ -1582,24 +1582,24 @@ async function pagarCuota(){
 function refrescarSelectSocios(){
   const sel = document.getElementById('cuota-socio-select');
   if (!sel) return;
-  sel.innerHTML = '<option value="">Elegí un socio…</option>' +
-    socios.map(s=>`<option value="${s.id}">${[s.nombre,s.apellido].filter(Boolean).join(' ')||s.dni||'Socio'}${s.cuota_vencida?' (vencida)':''}</option>`).join('');
+  sel.innerHTML = '<option value="">Elegí un adherente…</option>' +
+    socios.map(s=>`<option value="${s.id}">${[s.nombre,s.apellido].filter(Boolean).join(' ')||s.dni||'Adherente'}${s.cuota_vencida?' (vencida)':''}</option>`).join('');
 }
 
 function renderStaffVencidos(){
   const cont = document.getElementById('staff-vencidos');
   if (!cont) return;
   const vencidos = socios.filter(s => s.cuota_vencida);
-  if (vencidos.length === 0){ cont.innerHTML = '<p class="hint" style="margin:0;">Todos los socios están al día.</p>'; return; }
-  cont.innerHTML = `<p class="hint" style="margin:0 0 6px;"><b>${vencidos.length}</b> socio(s) con la cuota vencida:</p>` +
-    vencidos.map(s => `<div class="history-item"><span>${[s.nombre,s.apellido].filter(Boolean).join(' ') || s.dni || 'Socio'}</span></div>`).join('');
+  if (vencidos.length === 0){ cont.innerHTML = '<p class="hint" style="margin:0;">Todos los adherentes están al día.</p>'; return; }
+  cont.innerHTML = `<p class="hint" style="margin:0 0 6px;"><b>${vencidos.length}</b> adherente(s) con la contribución vencida:</p>` +
+    vencidos.map(s => `<div class="history-item"><span>${[s.nombre,s.apellido].filter(Boolean).join(' ') || s.dni || 'Adherente'}</span></div>`).join('');
 }
 
 function renderPagosSinAsociar(){
   const cont = document.getElementById('staff-pagos-sin-asociar');
   if (!cont) return;
   if (pagosSinAsociar.length === 0){ cont.innerHTML = ''; return; }
-  cont.innerHTML = `<p class="hint" style="margin:0 0 6px;"><b>Pagos de Mercado Pago sin asociar a ningún socio:</b></p>` +
+  cont.innerHTML = `<p class="hint" style="margin:0 0 6px;"><b>Pagos de Mercado Pago sin asociar a ningún adherente:</b></p>` +
     pagosSinAsociar.map(p => `
       <div class="board-row" style="grid-template-columns:1.4fr 1fr auto;">
         <div>
@@ -1612,27 +1612,27 @@ function renderPagosSinAsociar(){
     `).join('');
   pagosSinAsociar.forEach(p => {
     const sel = document.getElementById('asociar-'+p.id);
-    if (sel) sel.innerHTML = '<option value="">Elegí un socio…</option>' + socios.map(s=>`<option value="${s.id}">${[s.nombre,s.apellido].filter(Boolean).join(' ')||s.dni||'Socio'}</option>`).join('');
+    if (sel) sel.innerHTML = '<option value="">Elegí un adherente…</option>' + socios.map(s=>`<option value="${s.id}">${[s.nombre,s.apellido].filter(Boolean).join(' ')||s.dni||'Adherente'}</option>`).join('');
   });
 }
 
 async function marcarCuotaManual(){
   const socioId = document.getElementById('cuota-socio-select').value;
-  if (!socioId){ toast('Elegí un socio.'); return; }
+  if (!socioId){ toast('Elegí un adherente.'); return; }
   const periodo = new Date().toISOString().slice(0,7) + '-01';
   const { error } = await sb.from('cuotas').upsert({
     socio_id: socioId, periodo, medio: 'manual', fecha_pago: nowIso(), registrado_por: session.user.id
   }, { onConflict: 'socio_id,periodo' });
   if (error){ toast('No se pudo marcar: ' + error.message); return; }
   await sb.from('perfiles').update({ cuota_vencida: false }).eq('id', socioId);
-  toast('Cuota marcada como pagada.');
+  toast('Contribución marcada como pagada.');
   await cargarDatosStaffCuotas(); refrescarSelectSocios(); renderStaffVencidos(); renderPagosSinAsociar();
 }
 
 async function asociarPago(pagoId){
   const sel = document.getElementById('asociar-'+pagoId);
   const socioId = sel ? sel.value : '';
-  if (!socioId){ toast('Elegí a qué socio corresponde.'); return; }
+  if (!socioId){ toast('Elegí a qué adherente corresponde.'); return; }
   const pago = pagosSinAsociar.find(p=>p.id===pagoId);
   if (!pago) return;
   const { error: e1 } = await sb.from('cuotas').upsert({
