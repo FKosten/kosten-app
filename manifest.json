@@ -1,7 +1,7 @@
 {
   "name": "Fundación Kosten",
   "short_name": "Kosten",
-  "description": "Fundación Kosten — registro de socios y fichaje de ingreso/salida al agua.",
+  "description": "Fundación Kosten — registro de adherentes y fichaje de ingreso/salida al agua.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
