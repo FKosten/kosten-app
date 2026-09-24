@@ -65,6 +65,9 @@
   .tabs{display:flex;background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:4px;gap:4px;}
   .tab-btn{flex:1;border:none;background:transparent;color:var(--ink-soft);font-family:'Archivo',sans-serif;font-weight:700;font-size:0.92rem;padding:10px 12px;border-radius:9px;cursor:pointer;}
   .tab-btn.active{background:var(--surface);color:var(--ink);box-shadow:var(--shadow);}
+  .tabs-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+  .tabs-scroll::-webkit-scrollbar{display:none;}
+  .tabs-scroll .tab-btn{flex:0 0 auto;white-space:nowrap;}
   .panel{display:none;flex-direction:column;gap:16px;}
   .panel.active{display:flex;}
 
@@ -72,6 +75,22 @@
   .card h2{margin:0 0 4px;font-family:'Archivo',sans-serif;font-size:1.05rem;font-weight:700;}
   .card .hint{color:var(--ink-soft);font-size:0.85rem;margin:0 0 12px;}
   .center-card{max-width:420px;margin:40px auto 0;}
+
+  .post{background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden;}
+  .post-head{display:flex;align-items:center;gap:10px;padding:14px 16px 8px;}
+  .post-avatar{width:38px;height:38px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;}
+  .post-avatar img{width:100%;height:100%;object-fit:cover;}
+  .post-who{display:flex;flex-direction:column;line-height:1.25;}
+  .post-who b{font-family:'Archivo',sans-serif;font-size:0.92rem;color:var(--ink);}
+  .post-who span{font-size:0.76rem;color:var(--ink-faint);}
+  .post-title{margin:2px 16px 4px;font-family:'Archivo',sans-serif;font-size:1rem;font-weight:700;color:var(--ink);}
+  .post-body{margin:0 16px 12px;white-space:pre-wrap;color:var(--ink-soft);font-size:0.92rem;line-height:1.45;}
+  .post-img{display:block;width:100%;max-height:420px;object-fit:cover;background:var(--surface-2);}
+  .post-foot{display:flex;align-items:center;gap:14px;padding:8px 16px 14px;border-top:1px solid var(--line);margin-top:10px;}
+  .like-btn{display:flex;align-items:center;gap:6px;border:none;background:transparent;color:var(--ink-soft);font-family:'Archivo',sans-serif;font-weight:700;font-size:0.86rem;padding:8px 10px;border-radius:9px;cursor:pointer;}
+  .like-btn:hover{background:var(--surface-2);}
+  .like-btn.liked{color:var(--accent-strong);}
+  .like-btn .heart{font-size:1.05rem;}
 
   label.field{display:flex;flex-direction:column;gap:6px;font-size:0.85rem;color:var(--ink-soft);font-weight:600;}
   label.field span{font-size:0.78rem;text-transform:uppercase;letter-spacing:0.04em;}
@@ -186,6 +205,7 @@ let credencialesPropias = [];
 let credenciales = [];
 let modoRecuperarPassword = false;
 let anuncios = [];
+let anuncioLikes = [];
 let bitacoraEditando = null;
 let bitacoraNuevoAbierto = false;
 const UMBRAL_VIENTO_ALERTA_KMH = 40;
@@ -606,7 +626,7 @@ async function renderApp(){
     </div>
 
     <div class="panel active" id="panel-socio">
-      <div class="tabs" id="socio-tabs">
+      <div class="tabs tabs-scroll" id="socio-tabs">
         <button class="tab-btn active" id="sociotab-fichaje" onclick="setSocioTab('fichaje')">Fichaje</button>
         <button class="tab-btn" id="sociotab-bitacora" onclick="setSocioTab('bitacora')">Bitácora</button>
         <button class="tab-btn" id="sociotab-anuncios" onclick="setSocioTab('anuncios')">Anuncios</button>
@@ -632,7 +652,7 @@ async function renderApp(){
     </div>
 
     <div class="panel" id="panel-staff">
-      <div class="tabs" id="staff-tabs">
+      <div class="tabs tabs-scroll" id="staff-tabs">
         <button class="tab-btn active" id="stafftab-fichaje" onclick="setStaffTab('fichaje')">Fichaje</button>
         <button class="tab-btn" id="stafftab-cuotas" onclick="setStaffTab('cuotas')">Contribuciones</button>
         <button class="tab-btn" id="stafftab-inventario" onclick="setStaffTab('inventario')">Inventario</button>
@@ -741,9 +761,10 @@ async function renderApp(){
           <p class="hint">Se muestra a todos los adherentes (y les llega una notificación) hasta el día que elijas — después se borra solo.</p>
           <label class="field"><span>Título</span><input type="text" id="an-titulo" placeholder="Ej: Clase de revalidación"/></label>
           <label class="field" style="margin-top:10px;"><span>Detalle</span><textarea id="an-cuerpo" rows="3" style="width:100%;font-family:inherit;font-size:0.95rem;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);"></textarea></label>
+          <label class="field" style="margin-top:10px;"><span>Foto (opcional)</span><input type="file" id="an-imagen" accept="image/*"/></label>
           <label class="field" style="margin-top:10px;"><span>Mostrar hasta</span><input type="date" id="an-vigencia"/></label>
           <p class="errtext" id="an-err"></p>
-          <button class="btn btn-primary" style="margin-top:12px;" onclick="agregarAnuncio()">Publicar (envía notificación)</button>
+          <button class="btn btn-primary" style="margin-top:12px;" id="an-btn-publicar" onclick="agregarAnuncio()">Publicar (envía notificación)</button>
         </div>
         <div class="card">
           <h2>Anuncios vigentes</h2>
@@ -1372,50 +1393,117 @@ async function borrarCredencial(id){
 // ANUNCIOS / NOVEDADES
 // =====================================================================
 async function cargarAnuncios(){
-  const { data, error } = await sb.from('anuncios').select('*').order('created_at', { ascending:false });
-  if (error){ console.error('Error leyendo anuncios:', error.message); return; }
-  anuncios = data || [];
+  const [ra, rl] = await Promise.all([
+    sb.from('anuncios').select('*').order('created_at', { ascending:false }),
+    sb.from('anuncio_likes').select('*')
+  ]);
+  if (ra.error){ console.error('Error leyendo anuncios:', ra.error.message); return; }
+  anuncios = ra.data || [];
+  anuncioLikes = rl.data || [];
 }
+function tiempoRelativo(iso){
+  const d = new Date(iso);
+  const seg = Math.floor((Date.now() - d.getTime()) / 1000);
+  if (seg < 60) return 'recién';
+  const min = Math.floor(seg / 60);
+  if (min < 60) return `hace ${min} min`;
+  const hs = Math.floor(min / 60);
+  if (hs < 24) return `hace ${hs} h`;
+  const dias = Math.floor(hs / 24);
+  if (dias < 7) return `hace ${dias} d`;
+  return d.toLocaleDateString('es-AR');
+}
+function fechaCorta(fecha){
+  const d = new Date(fecha + 'T00:00:00');
+  return d.toLocaleDateString('es-AR');
+}
+function likesDe(anuncioId){ return anuncioLikes.filter(l => l.anuncio_id === anuncioId); }
+function yoLikeeEste(anuncioId){ return anuncioLikes.some(l => l.anuncio_id === anuncioId && l.socio_id === session.user.id); }
 function renderAnunciosSocio(){
   const cont = document.getElementById('socio-anuncios');
   if (!cont) return;
   if (anuncios.length === 0){ cont.innerHTML = '<p class="empty">No hay anuncios por ahora.</p>'; return; }
-  cont.innerHTML = anuncios.map(a => `
-    <div class="card">
-      <h2 style="margin-bottom:2px;">${a.titulo}</h2>
-      <p style="white-space:pre-wrap;margin:0 0 8px;">${a.cuerpo}</p>
-      <p class="hint" style="margin:0;">Vigente hasta el ${a.fecha_vigencia_hasta}</p>
-    </div>`).join('');
+  cont.innerHTML = anuncios.map(a => {
+    const cantLikes = likesDe(a.id).length;
+    const yaLike = yoLikeeEste(a.id);
+    return `
+    <div class="post">
+      <div class="post-head">
+        <div class="post-avatar"><img src="icon-192.png" alt=""/></div>
+        <div class="post-who">
+          <b>Fundación Kosten</b>
+          <span>${tiempoRelativo(a.created_at)} · vigente hasta el ${fechaCorta(a.fecha_vigencia_hasta)}</span>
+        </div>
+      </div>
+      <div class="post-title">${a.titulo}</div>
+      <div class="post-body">${a.cuerpo}</div>
+      ${a.imagen_url ? `<img class="post-img" src="${a.imagen_url}" alt="">` : ''}
+      <div class="post-foot">
+        <button class="like-btn ${yaLike ? 'liked' : ''}" onclick="toggleLikeAnuncio('${a.id}')">
+          <span class="heart">${yaLike ? '❤️' : '🤍'}</span> Me gusta${cantLikes > 0 ? ` · ${cantLikes}` : ''}
+        </button>
+      </div>
+    </div>`;
+  }).join('');
 }
 function renderStaffAnuncios(){
   const cont = document.getElementById('staff-anuncios');
   if (!cont) return;
   if (anuncios.length === 0){ cont.innerHTML = '<p class="empty">No hay anuncios cargados.</p>'; return; }
   cont.innerHTML = anuncios.map(a => `
-    <div class="board-row" style="grid-template-columns:1.6fr 1fr auto;">
+    <div class="board-row" style="grid-template-columns:auto 1.6fr 1fr auto;align-items:center;">
+      ${a.imagen_url ? `<img src="${a.imagen_url}" alt="" style="width:44px;height:44px;object-fit:cover;border-radius:8px;">` : '<div style="width:44px;"></div>'}
       <div>
         <div class="board-name">${a.titulo}</div>
         <div class="hint" style="margin:2px 0 0;">${a.cuerpo}</div>
+        <div class="hint" style="margin:2px 0 0;">❤️ ${likesDe(a.id).length}</div>
       </div>
-      <div class="hint" style="margin:0;">Hasta ${a.fecha_vigencia_hasta}</div>
+      <div class="hint" style="margin:0;">Hasta ${fechaCorta(a.fecha_vigencia_hasta)}</div>
       <button class="btn btn-ghost" onclick="borrarAnuncioManual('${a.id}')">Quitar</button>
     </div>`).join('');
 }
+async function toggleLikeAnuncio(anuncioId){
+  const yaLike = yoLikeeEste(anuncioId);
+  if (yaLike){
+    await sb.from('anuncio_likes').delete().eq('anuncio_id', anuncioId).eq('socio_id', session.user.id);
+  } else {
+    await sb.from('anuncio_likes').insert({ anuncio_id: anuncioId, socio_id: session.user.id });
+  }
+  await cargarAnuncios();
+  renderAnunciosSocio();
+  if (perfil.rol === 'staff' || perfil.rol === 'admin') renderStaffAnuncios();
+}
 async function agregarAnuncio(){
   const errEl = document.getElementById('an-err');
+  const btn = document.getElementById('an-btn-publicar');
   const titulo = document.getElementById('an-titulo').value.trim();
   const cuerpo = document.getElementById('an-cuerpo').value.trim();
   const vigencia = document.getElementById('an-vigencia').value;
+  const archivo = document.getElementById('an-imagen').files[0];
   errEl.textContent = '';
   if (!titulo){ errEl.textContent = 'Poné un título.'; return; }
   if (!cuerpo){ errEl.textContent = 'Poné el detalle del anuncio.'; return; }
   if (!vigencia){ errEl.textContent = 'Elegí hasta cuándo se muestra.'; return; }
+  btn.disabled = true;
+  let imagen_url = null;
+  if (archivo){
+    const ruta = `${Date.now()}-${archivo.name}`.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+    const { error: errSubida } = await sb.storage.from('anuncios').upload(ruta, archivo);
+    if (errSubida){
+      errEl.textContent = 'No se pudo subir la foto: ' + errSubida.message;
+      btn.disabled = false;
+      return;
+    }
+    imagen_url = sb.storage.from('anuncios').getPublicUrl(ruta).data.publicUrl;
+  }
   const { error } = await sb.from('anuncios').insert({
-    titulo, cuerpo, fecha_vigencia_hasta: vigencia, creado_por: session.user.id
+    titulo, cuerpo, fecha_vigencia_hasta: vigencia, creado_por: session.user.id, imagen_url
   });
+  btn.disabled = false;
   if (error){ errEl.textContent = 'No se pudo publicar: ' + error.message; return; }
   document.getElementById('an-titulo').value = '';
   document.getElementById('an-cuerpo').value = '';
+  document.getElementById('an-imagen').value = '';
   document.getElementById('an-vigencia').value = fechaLocal(nowIso());
   toast('Anuncio publicado — se les avisa a los adherentes.');
   await cargarAnuncios(); renderStaffAnuncios(); renderAnunciosSocio();
