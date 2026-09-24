@@ -91,6 +91,17 @@
   .like-btn:hover{background:var(--surface-2);}
   .like-btn.liked{color:var(--accent-strong);}
   .like-btn .heart{font-size:1.05rem;}
+  .comments{padding:2px 16px 14px;border-top:1px solid var(--line);}
+  .comment-item{display:flex;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid var(--line);}
+  .comment-item:last-of-type{border-bottom:none;}
+  .comment-txt b{font-family:'Archivo',sans-serif;font-size:0.85rem;color:var(--ink);}
+  .comment-txt span{display:block;font-size:0.88rem;color:var(--ink-soft);margin-top:1px;white-space:pre-wrap;}
+  .comment-txt .comment-time{display:inline;font-size:0.74rem;color:var(--ink-faint);margin-left:6px;}
+  .comment-del{border:none;background:transparent;color:var(--ink-faint);font-size:0.78rem;cursor:pointer;flex-shrink:0;}
+  .comment-del:hover{color:var(--danger);}
+  .comment-form{display:flex;gap:8px;margin-top:10px;}
+  .comment-form input{flex:1;font-family:'Karla',sans-serif;font-size:0.88rem;color:var(--ink);background:var(--surface-2);border:1px solid var(--line);border-radius:20px;padding:9px 14px;}
+  .comment-form button{border:none;background:var(--accent);color:var(--accent-ink);font-family:'Archivo',sans-serif;font-weight:700;font-size:0.82rem;padding:9px 16px;border-radius:20px;cursor:pointer;flex-shrink:0;}
 
   label.field{display:flex;flex-direction:column;gap:6px;font-size:0.85rem;color:var(--ink-soft);font-weight:600;}
   label.field span{font-size:0.78rem;text-transform:uppercase;letter-spacing:0.04em;}
@@ -206,6 +217,7 @@ let credenciales = [];
 let modoRecuperarPassword = false;
 let anuncios = [];
 let anuncioLikes = [];
+let anuncioComentarios = [];
 let bitacoraEditando = null;
 let bitacoraNuevoAbierto = false;
 const UMBRAL_VIENTO_ALERTA_KMH = 40;
@@ -1393,13 +1405,18 @@ async function borrarCredencial(id){
 // ANUNCIOS / NOVEDADES
 // =====================================================================
 async function cargarAnuncios(){
-  const [ra, rl] = await Promise.all([
+  const [ra, rl, rc] = await Promise.all([
     sb.from('anuncios').select('*').order('created_at', { ascending:false }),
-    sb.from('anuncio_likes').select('*')
+    sb.from('anuncio_likes').select('*'),
+    sb.from('anuncio_comentarios').select('*, perfiles(nombre,apellido)').order('created_at', { ascending:true })
   ]);
   if (ra.error){ console.error('Error leyendo anuncios:', ra.error.message); return; }
   anuncios = ra.data || [];
   anuncioLikes = rl.data || [];
+  anuncioComentarios = rc.data || [];
+}
+function escaparHtml(s){
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 function tiempoRelativo(iso){
   const d = new Date(iso);
@@ -1419,13 +1436,25 @@ function fechaCorta(fecha){
 }
 function likesDe(anuncioId){ return anuncioLikes.filter(l => l.anuncio_id === anuncioId); }
 function yoLikeeEste(anuncioId){ return anuncioLikes.some(l => l.anuncio_id === anuncioId && l.socio_id === session.user.id); }
+function comentariosDe(anuncioId){ return anuncioComentarios.filter(c => c.anuncio_id === anuncioId); }
 function renderAnunciosSocio(){
   const cont = document.getElementById('socio-anuncios');
   if (!cont) return;
   if (anuncios.length === 0){ cont.innerHTML = '<p class="empty">No hay anuncios por ahora.</p>'; return; }
+  const esModerador = perfil.rol === 'staff' || perfil.rol === 'admin';
   cont.innerHTML = anuncios.map(a => {
     const cantLikes = likesDe(a.id).length;
     const yaLike = yoLikeeEste(a.id);
+    const comentarios = comentariosDe(a.id);
+    const comentariosHtml = comentarios.map(c => {
+      const nombre = c.perfiles ? [c.perfiles.nombre, c.perfiles.apellido].filter(Boolean).join(' ') : 'Adherente';
+      const puedeBorrar = c.socio_id === session.user.id || esModerador;
+      return `
+      <div class="comment-item">
+        <div class="comment-txt"><b>${escaparHtml(nombre || 'Adherente')}</b><span>${escaparHtml(c.texto)}<span class="comment-time"> · ${tiempoRelativo(c.created_at)}</span></span></div>
+        ${puedeBorrar ? `<button class="comment-del" onclick="borrarComentario('${c.id}')">Eliminar</button>` : ''}
+      </div>`;
+    }).join('');
     return `
     <div class="post">
       <div class="post-head">
@@ -1443,8 +1472,31 @@ function renderAnunciosSocio(){
           <span class="heart">${yaLike ? '❤️' : '🤍'}</span> Me gusta${cantLikes > 0 ? ` · ${cantLikes}` : ''}
         </button>
       </div>
+      <div class="comments">
+        ${comentariosHtml}
+        <div class="comment-form">
+          <input type="text" id="comentario-input-${a.id}" placeholder="Escribí un comentario…" onkeydown="if(event.key==='Enter') agregarComentario('${a.id}')"/>
+          <button onclick="agregarComentario('${a.id}')">Enviar</button>
+        </div>
+      </div>
     </div>`;
   }).join('');
+}
+async function agregarComentario(anuncioId){
+  const input = document.getElementById('comentario-input-' + anuncioId);
+  const texto = input.value.trim();
+  if (!texto) return;
+  input.disabled = true;
+  const { error } = await sb.from('anuncio_comentarios').insert({ anuncio_id: anuncioId, socio_id: session.user.id, texto });
+  if (error){ toast('No se pudo comentar: ' + error.message); input.disabled = false; return; }
+  await cargarAnuncios();
+  renderAnunciosSocio();
+}
+async function borrarComentario(id){
+  const { error } = await sb.from('anuncio_comentarios').delete().eq('id', id);
+  if (error){ toast('No se pudo eliminar: ' + error.message); return; }
+  await cargarAnuncios();
+  renderAnunciosSocio();
 }
 function renderStaffAnuncios(){
   const cont = document.getElementById('staff-anuncios');
