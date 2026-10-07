@@ -74,6 +74,8 @@ Fases 1, 2 y 3 funcionalmente completas y probadas en producción por Leo (Mac/S
 
 ## Cómo trabajar acá
 - Cambios al frontend: editar `index.html`/`manifest.json`/`sw.js`, commit y push; Vercel redeploya solo.
+- Push: Leo pidió que Claude suba los cambios (commit + `git push`) directamente. El remote usa SSH (`git@github.com:FKosten/kosten-app.git`) con la llave de la cuenta FKosten que ya está en `~/.ssh`. Leo también tiene GitHub Desktop.
+- Lo que toca la base de producción (Run en el SQL Editor) y el Deploy de Edge Functions lo confirma Leo con su propio clic: Claude deja el código cargado y verifica después.
 - Cambios a la base: dejar el SQL versionado en `supabase/` (idealmente un archivo nuevo por migración) y avisarle a Leo que lo corra en el SQL Editor, salvo que se configure el Supabase CLI.
 - Edge Functions: viven en `supabase/functions/<nombre>/`. Hoy se despliegan pegando el código en el dashboard de Supabase.
 - Antes de cualquier cambio de seguridad (RLS, grants, triggers) explicarle a Leo qué hace y por qué.
