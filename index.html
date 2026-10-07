@@ -186,6 +186,18 @@
 
 <div class="toast" id="toast"></div>
 
+<div class="overlay" id="modal-confirmar" style="z-index:60;">
+  <div class="modal">
+    <h3 id="confirmar-titulo">¿Confirmás?</h3>
+    <ul id="confirmar-detalle" style="margin:0;padding-left:20px;color:var(--ink-soft);font-size:0.92rem;line-height:1.55;"></ul>
+    <p class="hint" style="margin:0;">Queda anotado en el registro de cambios.</p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="confirmar-cancelar">Cancelar</button>
+      <button class="btn btn-primary" id="confirmar-ok">Sí, confirmar</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // =====================================================================
 // CONFIGURACIÓN — datos públicos del proyecto de Supabase (seguros de
@@ -236,6 +248,13 @@ function pad(n){ return String(n).padStart(2,'0'); }
 function fmtHora(iso){ const d = new Date(iso); return pad(d.getHours())+':'+pad(d.getMinutes()); }
 function fechaLocal(iso){ const d = new Date(iso); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
 function nowIso(){ return new Date().toISOString(); }
+function fechaHoraCorta(iso){ return new Date(iso).toLocaleString('es-AR', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' }); }
+function mesTexto(periodo){ return new Date(periodo + 'T00:00:00').toLocaleDateString('es-AR', { month:'long', year:'numeric' }); }
+function pesos(n){ return (n === null || n === undefined || n === '') ? '—' : '$' + Number(n).toLocaleString('es-AR'); }
+function nombreDeFichaje(f){
+  if (f.es_esporadico) return (f.nombre_esporadico || 'Esporádico') + ' (esporádico)';
+  return (f.perfiles ? [f.perfiles.nombre, f.perfiles.apellido].filter(Boolean).join(' ') : '') || 'Adherente';
+}
 function horaMasMinutos(mins){ const d = new Date(Date.now()+mins*60000); return pad(d.getHours())+':'+pad(d.getMinutes()); }
 function toast(msg){
   const t = document.getElementById('toast');
@@ -457,12 +476,22 @@ function renderAuth(){
       <div id="auth-signup" class="stack" hidden>
         <label class="field"><span>Email</span><input type="email" id="su-email"/></label>
         <label class="field"><span>Contraseña (mínimo 6 caracteres)</span><input type="password" id="su-pass"/></label>
+        <label class="field" id="su-codigo-wrap" hidden><span>Código de adherente (te lo da la comisión)</span><input type="text" id="su-codigo" autocapitalize="characters" autocomplete="off" spellcheck="false"/></label>
         <p class="errtext" id="su-err"></p>
         <button class="btn btn-primary btn-big" onclick="hacerSignup()">Crear cuenta</button>
         <p class="hint" style="margin:0;">Después de crear la cuenta te va a llegar un email de confirmación — hay que abrirlo antes de poder ingresar.</p>
       </div>
     </div>
   `;
+  mostrarCampoCodigo();
+}
+// El código de adherente se pide solo si la comisión ya cargó el listado de códigos.
+let altaRequiereCodigo = false;
+async function mostrarCampoCodigo(){
+  const { data, error } = await sb.rpc('alta_requiere_codigo');
+  altaRequiereCodigo = !error && data === true;
+  const wrap = document.getElementById('su-codigo-wrap');
+  if (wrap) wrap.hidden = !altaRequiereCodigo;
 }
 function setAuthTab(which){
   ocultarRecuperar();
@@ -539,7 +568,13 @@ async function hacerSignup(){
   errEl.textContent = '';
   if (!email || !password){ errEl.textContent = 'Completá email y contraseña.'; return; }
   if (password.length < 6){ errEl.textContent = 'La contraseña necesita al menos 6 caracteres.'; return; }
-  const { error } = await sb.auth.signUp({ email, password });
+  const codigo = (document.getElementById('su-codigo').value || '').replace(/\s/g, '').toUpperCase();
+  if (altaRequiereCodigo){
+    if (!codigo){ errEl.textContent = 'Poné tu código de adherente.'; return; }
+    const { data: valido } = await sb.rpc('validar_codigo_alta', { p_codigo: codigo });
+    if (!valido){ errEl.textContent = 'Ese código no es válido o ya fue usado. Si creés que es un error, avisale a la comisión.'; return; }
+  }
+  const { error } = await sb.auth.signUp({ email, password, options: { data: { codigo } } });
   if (error){ errEl.textContent = traducirError(error.message); return; }
   toast('Cuenta creada. Revisá tu email para confirmarla.');
   setAuthTab('login');
@@ -548,6 +583,7 @@ function traducirError(msg){
   if (/already registered|already exists/i.test(msg)) return 'Ese email ya tiene una cuenta creada.';
   if (/invalid login credentials/i.test(msg)) return 'Email o contraseña incorrectos.';
   if (/email not confirmed/i.test(msg)) return 'Todavía no confirmaste tu email — revisá tu casilla.';
+  if (/database error saving new user/i.test(msg)) return 'No se pudo crear la cuenta. Revisá el código de adherente: puede estar mal escrito o ya haber sido usado.';
   if (/perfiles_dni_unico/.test(msg)) return 'Ese DNI ya está registrado en otra cuenta. Si es tuyo, avisale a la comisión.';
   if (/fichajes_un_ingreso_abierto/.test(msg)) return 'Ya tenés un ingreso abierto. Fichá la salida antes de volver a entrar.';
   if (/equipo_numero_unico/.test(msg)) return 'Ya existe un equipo con ese número.';
@@ -583,7 +619,7 @@ async function renderCompletarPerfil(){
           <label class="field"><span>Apellido</span><input type="text" id="cp-apellido" value="${escaparHtml(p.apellido)}"/></label>
         </div>
         <div class="row2">
-          <label class="field"><span>DNI</span><input type="text" id="cp-dni" value="${escaparHtml(p.dni)}"/></label>
+          <label class="field"><span>DNI</span><input type="text" id="cp-dni" value="${escaparHtml(p.dni)}" ${p.dni ? 'readonly title="Viene del listado de socios; si está mal, avisale a la comisión."' : ''}/></label>
           <label class="field"><span>Teléfono</span><input type="tel" id="cp-telefono" value="${escaparHtml(p.telefono)}"/></label>
         </div>
         <label class="field"><span>Contacto de emergencia</span><input type="text" id="cp-emergencia" placeholder="Nombre y teléfono" value="${escaparHtml(p.contacto_emergencia)}"/></label>
@@ -718,6 +754,7 @@ async function renderApp(){
         <button class="tab-btn" id="stafftab-inventario" onclick="setStaffTab('inventario')">Inventario</button>
         <button class="tab-btn" id="stafftab-credenciales" onclick="setStaffTab('credenciales')">Credenciales</button>
         <button class="tab-btn" id="stafftab-anuncios" onclick="setStaffTab('anuncios')">Anuncios</button>
+        <button class="tab-btn" id="stafftab-registro" onclick="setStaffTab('registro')">Registro</button>
       </div>
 
       <div class="panel active" id="staffsub-fichaje">
@@ -815,6 +852,19 @@ async function renderApp(){
         <div class="card">
           <h2>Credenciales cargadas</h2>
           <div id="staff-credenciales"></div>
+        </div>
+      </div>
+
+      <div class="panel" id="staffsub-registro">
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:2px;">
+            <div>
+              <h2 style="margin-bottom:0;">Registro de cambios</h2>
+              <p class="hint">Todo lo que se agregó, modificó o borró: quién, cuándo y qué cambió.</p>
+            </div>
+            <button class="btn btn-ghost" onclick="cargarRegistro()">Actualizar</button>
+          </div>
+          <div id="staff-registro"><p class="empty">Cargando…</p></div>
         </div>
       </div>
 
@@ -950,10 +1000,11 @@ function setMainTab(which){
 let staffTabActual = 'fichaje';
 function setStaffTab(which){
   staffTabActual = which;
-  ['fichaje','cuotas','inventario','credenciales','anuncios'].forEach(w => {
+  ['fichaje','cuotas','inventario','credenciales','anuncios','registro'].forEach(w => {
     document.getElementById('staffsub-'+w).classList.toggle('active', w===which);
     document.getElementById('stafftab-'+w).classList.toggle('active', w===which);
   });
+  if (which === 'registro') cargarRegistro();
 }
 let socioTabActual = 'fichaje';
 function setSocioTab(which){
@@ -976,6 +1027,11 @@ async function guardarCarnet(){
   const telefono = document.getElementById('carnet-telefono').value.trim();
   const contacto_emergencia = document.getElementById('carnet-contacto-emergencia').value.trim();
   errEl.textContent = '';
+  const cambios = [];
+  if (telefono !== (perfil.telefono || '')) cambios.push(`Teléfono: ${perfil.telefono || '(vacío)'} → ${telefono || '(vacío)'}`);
+  if (contacto_emergencia !== (perfil.contacto_emergencia || '')) cambios.push(`Contacto de emergencia: ${perfil.contacto_emergencia || '(vacío)'} → ${contacto_emergencia || '(vacío)'}`);
+  if (cambios.length === 0){ closeModal('modal-carnet'); return; }
+  if (!await confirmarAccion('¿Guardar estos cambios?', cambios)) return;
   const { error } = await sb.from('perfiles').update({ telefono, contacto_emergencia }).eq('id', session.user.id);
   if (error){ errEl.textContent = 'No se pudo guardar: ' + error.message; return; }
   perfil.telefono = telefono;
@@ -995,6 +1051,20 @@ function abrirModalEsporadico(){
   document.getElementById('esp-hora').value = horaMasMinutos(90);
   document.getElementById('esp-err').textContent = '';
   openModal('modal-esporadico');
+}
+// Muestra el cartel "¿Estás seguro?" con el detalle de lo que se va a hacer
+// (lineas = texto plano). Devuelve true si confirma, false si cancela.
+function confirmarAccion(titulo, lineas){
+  return new Promise(resolve => {
+    document.getElementById('confirmar-titulo').textContent = titulo;
+    document.getElementById('confirmar-detalle').innerHTML = lineas.map(l => `<li>${escaparHtml(l)}</li>`).join('');
+    const ok = document.getElementById('confirmar-ok');
+    const no = document.getElementById('confirmar-cancelar');
+    const cerrar = (valor) => { closeModal('modal-confirmar'); ok.onclick = null; no.onclick = null; resolve(valor); };
+    ok.onclick = () => cerrar(true);
+    no.onclick = () => cerrar(false);
+    openModal('modal-confirmar');
+  });
 }
 function openModal(id){ document.getElementById(id).classList.add('open'); }
 function closeModal(id){ document.getElementById(id).classList.remove('open'); }
@@ -1216,6 +1286,14 @@ async function ficharIngreso(){
 async function ficharSalida(fichajeId, desdeStaff){
   const f = fichajes.find(x=>x.id===fichajeId);
   if (!f) return;
+  if (desdeStaff){
+    const ok = await confirmarAccion('¿Marcar la salida?', [
+      `Persona: ${nombreDeFichaje(f)}`,
+      `Ingresó a las ${fmtHora(f.hora_ingreso)} · salida estimada ${fmtHora(f.hora_estimada_salida)}`,
+      'Se registra la salida con la hora de ahora y el equipo vuelve a quedar disponible.'
+    ]);
+    if (!ok) return;
+  }
   const { error } = await sb.from('fichajes').update({ hora_salida_real: nowIso(), estado:'cerrado', marcado_por: desdeStaff?'staff':'socio' }).eq('id', fichajeId);
   if (error){ toast('No se pudo marcar la salida: ' + error.message); return; }
   // El equipo vuelve a "disponible" solo: lo hace un trigger en la base (on_fichaje_equipo).
@@ -1386,6 +1464,7 @@ async function agregarEquipo(){
   if (!numero || numero < 1){ errEl.textContent = 'Poné un número válido.'; return; }
   const yaExiste = equipo.some(e => e.tipo===tipo && (e.subtipo||null)===subtipo && e.numero===numero);
   if (yaExiste){ errEl.textContent = 'Ya existe un equipo con ese número.'; return; }
+  if (!await confirmarAccion('¿Agregar este equipo?', [`${labelEquipoItem({ tipo, subtipo, numero })}, como disponible`])) return;
   const { error } = await sb.from('equipo').insert({ tipo, subtipo, numero, estado: 'disponible' });
   if (error){ errEl.textContent = 'No se pudo agregar: ' + traducirError(error.message); return; }
   closeModal('modal-equipo');
@@ -1396,6 +1475,11 @@ async function agregarEquipo(){
 }
 
 async function cambiarEstadoEquipo(id, estado){
+  const e = equipo.find(x => x.id === id);
+  const ok = await confirmarAccion('¿Cambiar el estado del equipo?', [
+    `${e ? labelEquipoItem(e) : 'Equipo'}: ${VALOR_LEGIBLE[e && e.estado] || '—'} → ${VALOR_LEGIBLE[estado]}`
+  ]);
+  if (!ok){ renderStaffInventario(); return; }  // vuelve el desplegable a como estaba
   const { error } = await sb.from('equipo').update({ estado }).eq('id', id);
   if (error){ toast('No se pudo actualizar: ' + error.message); return; }
   toast('Estado actualizado.');
@@ -1449,6 +1533,13 @@ async function agregarCredencial(){
   if (!nombre){ errEl.textContent = 'Falta el nombre de la credencial.'; return; }
   if (!fecha){ errEl.textContent = 'Poné la fecha.'; return; }
   errEl.textContent = '';
+  const socio = socios.find(s => s.id === socioId);
+  if (!await confirmarAccion('¿Agregar esta credencial?', [
+    `Adherente: ${socio ? nombreAdherente(socio) : '—'}`,
+    `Credencial: ${nombre}`,
+    `Fecha: ${fechaCorta(fecha)}${vencimiento ? ' · vence ' + fechaCorta(vencimiento) : ' · sin vencimiento'}`,
+    ...(certificadoPor ? [`Certificado por: ${certificadoPor}`] : [])
+  ])) return;
   const { error } = await sb.from('credenciales').insert({
     socio_id: socioId, nombre, fecha, vencimiento, certificado_por: certificadoPor, registrado_por: session.user.id
   });
@@ -1461,6 +1552,9 @@ async function agregarCredencial(){
 }
 
 async function borrarCredencial(id){
+  const c = credenciales.find(x => x.id === id);
+  const quien = c && c.perfiles ? [c.perfiles.nombre, c.perfiles.apellido].filter(Boolean).join(' ') : 'adherente';
+  if (!await confirmarAccion('¿Quitar esta credencial?', [`${c ? c.nombre : 'Credencial'} de ${quien || 'adherente'}`])) return;
   const { error } = await sb.from('credenciales').delete().eq('id', id);
   if (error){ toast('No se pudo quitar: ' + error.message); return; }
   toast('Credencial quitada.');
@@ -1556,6 +1650,10 @@ async function agregarComentario(anuncioId){
   renderAnunciosSocio();
 }
 async function borrarComentario(id){
+  const c = anuncioComentarios.find(x => x.id === id);
+  const autor = (c && c.perfiles ? [c.perfiles.nombre, c.perfiles.apellido].filter(Boolean).join(' ') : '') || 'adherente';
+  const texto = c ? (c.texto.length > 80 ? c.texto.slice(0, 80) + '…' : c.texto) : '';
+  if (!await confirmarAccion('¿Eliminar este comentario?', [`De ${autor}: "${texto}"`])) return;
   const { error } = await sb.from('anuncio_comentarios').delete().eq('id', id);
   if (error){ toast('No se pudo eliminar: ' + error.message); return; }
   await cargarAnuncios();
@@ -1620,6 +1718,12 @@ async function agregarAnuncio(){
   if (!titulo){ errEl.textContent = 'Poné un título.'; return; }
   if (!cuerpo){ errEl.textContent = 'Poné el detalle del anuncio.'; return; }
   if (!vigencia){ errEl.textContent = 'Elegí hasta cuándo se muestra.'; return; }
+  if (!await confirmarAccion('¿Publicar este anuncio?', [
+    `Título: ${titulo}`,
+    `Visible hasta el ${fechaCorta(vigencia)}`,
+    archivo ? 'Con foto' : 'Sin foto',
+    'Les llega una notificación a todos los adherentes.'
+  ])) return;
   btn.disabled = true;
   let imagen_url = null;
   if (archivo){
@@ -1648,6 +1752,10 @@ async function agregarAnuncio(){
 }
 async function borrarAnuncioManual(id){
   const anuncio = anuncios.find(a => a.id === id);
+  if (!await confirmarAccion('¿Quitar este anuncio?', [
+    `"${anuncio ? anuncio.titulo : ''}"`,
+    'Se borran también su foto, sus "me gusta" y sus comentarios.'
+  ])) return;
   const { error } = await sb.from('anuncios').delete().eq('id', id);
   if (error){ toast('No se pudo quitar: ' + error.message); return; }
   const ruta = rutaImagenAnuncio(anuncio && anuncio.imagen_url);
@@ -1784,6 +1892,15 @@ async function guardarBitacora(id){
     }
     payload.hora_salida_real = isoDeDatetimeLocal(salida);
   }
+  const f = fichajes.find(x => x.id === id);
+  const cambios = [];
+  if (f){
+    if (new Date(payload.hora_ingreso).getTime() !== new Date(f.hora_ingreso).getTime()) cambios.push(`Entrada: ${fechaHoraCorta(f.hora_ingreso)} → ${fechaHoraCorta(payload.hora_ingreso)}`);
+    if (payload.hora_salida_real && new Date(payload.hora_salida_real).getTime() !== new Date(f.hora_salida_real).getTime()) cambios.push(`Salida: ${f.hora_salida_real ? fechaHoraCorta(f.hora_salida_real) : '—'} → ${fechaHoraCorta(payload.hora_salida_real)}`);
+    if ((payload.nota || '') !== (f.nota || '')) cambios.push(`Nota: ${f.nota || '(vacía)'} → ${payload.nota || '(vacía)'}`);
+  }
+  if (cambios.length === 0){ cancelarEdicionBitacora(); return; }
+  if (!await confirmarAccion('¿Guardar los cambios en tu bitácora?', cambios)) return;
   const { error } = await sb.from('fichajes').update(payload).eq('id', id);
   if (error){ errEl.textContent = 'No se pudo guardar: ' + error.message; return; }
   bitacoraEditando = null;
@@ -1855,6 +1972,13 @@ async function marcarCuotaManual(){
   // Mes según la fecha de acá (antes usaba la hora de Londres y el último día
   // del mes, desde las 21 hs, lo anotaba en el mes siguiente).
   const periodo = fechaLocal(nowIso()).slice(0,7) + '-01';
+  const socio = socios.find(s => s.id === socioId);
+  if (!await confirmarAccion('¿Marcar la contribución como pagada?', [
+    `Adherente: ${socio ? nombreAdherente(socio) : '—'}`,
+    `Mes: ${mesTexto(periodo)}`,
+    `Monto: ${pesos(monto)}`,
+    'Se registra como pago manual (efectivo o transferencia).'
+  ])) return;
   const { error } = await sb.from('cuotas').upsert({
     socio_id: socioId, periodo, monto, medio: 'manual', fecha_pago: nowIso(), registrado_por: session.user.id
   }, { onConflict: 'socio_id,periodo' });
@@ -1870,6 +1994,12 @@ async function asociarPago(pagoId){
   if (!socioId){ toast('Elegí a qué adherente corresponde.'); return; }
   const pago = pagosSinAsociar.find(p=>p.id===pagoId);
   if (!pago) return;
+  const socio = socios.find(s => s.id === socioId);
+  if (!await confirmarAccion('¿Asociar este pago?', [
+    `Pago de ${pago.nombre_pagador || 'sin nombre'} (${pesos(pago.monto)}${pago.dni_recibido ? ', DNI ' + pago.dni_recibido : ''})`,
+    `Se asigna a: ${socio ? nombreAdherente(socio) : '—'}`,
+    `Mes: ${pago.periodo ? mesTexto(pago.periodo) : '—'}`
+  ])) return;
   const { error: e1 } = await sb.from('cuotas').upsert({
     socio_id: socioId, periodo: pago.periodo, monto: pago.monto, fecha_pago: pago.fecha_pago,
     medio: 'mercado_pago', mp_payment_id: pago.mp_payment_id
@@ -1879,6 +2009,101 @@ async function asociarPago(pagoId){
   await sb.from('pagos_sin_asociar').update({ estado:'asociado', asociado_a: socioId, resuelto_por: session.user.id, resuelto_en: nowIso() }).eq('id', pagoId);
   toast('Pago asociado.');
   await cargarDatosStaffCuotas(); refrescarSelectSocios(); renderStaffVencidos(); renderPagosSinAsociar();
+}
+
+// =====================================================================
+// REGISTRO DE CAMBIOS (lo anota la base sola; acá solo se muestra)
+// =====================================================================
+const REGISTRO_POR_PAGINA = 100;
+let registro = [];
+let registroNombres = {};
+let registroHayMas = false;
+const NOMBRE_TABLA = {
+  perfiles:'el perfil de', equipo:'el equipo', fichajes:'el fichaje de', cuotas:'la contribución de',
+  pagos_sin_asociar:'el pago de Mercado Pago de', credenciales:'la credencial', anuncios:'el anuncio',
+  anuncio_comentarios:'el comentario', terminos_condiciones:'los términos y condiciones'
+};
+const NOMBRE_CAMPO = {
+  nombre:'Nombre', apellido:'Apellido', dni:'DNI', fecha_nacimiento:'Fecha de nacimiento', telefono:'Teléfono',
+  email:'Email', contacto_emergencia:'Contacto de emergencia', rol:'Rol', estado:'Estado', acepta_tyc:'Aceptó T&C',
+  fecha_tyc:'Fecha T&C', version_tyc:'Versión T&C', cuota_vencida:'Contribución vencida', numero_socio:'N.° de adherente',
+  tipo:'Tipo', subtipo:'Subtipo', numero:'Número', embarcacion_id:'Embarcación', remo_id:'Remo', chaleco_id:'Chaleco',
+  hora_ingreso:'Ingreso', hora_estimada_salida:'Salida estimada', hora_salida_real:'Salida', marcado_por:'Marcado por',
+  nota:'Nota', periodo:'Mes', monto:'Monto', monto_neto:'Monto neto', fecha_pago:'Fecha de pago', medio:'Medio',
+  notas:'Notas', asociado_a:'Asociado a', resuelto_por:'Resuelto por', resuelto_en:'Resuelto el', fecha:'Fecha',
+  vencimiento:'Vencimiento', certificado_por:'Certificado por', titulo:'Título', cuerpo:'Detalle',
+  fecha_vigencia_hasta:'Visible hasta', imagen_url:'Foto', texto:'Texto', socio_id:'Adherente', registrado_por:'Registrado por'
+};
+const VALOR_LEGIBLE = {
+  disponible:'Disponible', en_uso:'En uso', mantenimiento:'En mantenimiento', de_baja:'De baja',
+  en_agua:'En el agua', cerrado:'Cerrado', socio:'Adherente', staff:'Staff', admin:'Admin',
+  activo:'Activo', inactivo:'Inactivo', mercado_pago:'Mercado Pago', manual:'Manual',
+  pendiente:'Pendiente', asociado:'Asociado', descartado:'Descartado',
+  embarcacion:'Embarcación', remo:'Remo', chaleco:'Chaleco', kayak:'Kayak', sup:'SUP'
+};
+
+async function cargarRegistro(mas){
+  const cont = document.getElementById('staff-registro');
+  if (!cont) return;
+  const desde = mas ? registro.length : 0;
+  const [{ data, error }, { data: perfs }] = await Promise.all([
+    sb.from('registro_cambios').select('*').order('creado_en', { ascending:false }).range(desde, desde + REGISTRO_POR_PAGINA - 1),
+    sb.from('perfiles').select('id,nombre,apellido')
+  ]);
+  if (error){ cont.innerHTML = `<p class="empty">No se pudo cargar el registro: ${escaparHtml(error.message)}</p>`; return; }
+  (perfs || []).forEach(p => { registroNombres[p.id] = [p.nombre, p.apellido].filter(Boolean).join(' ') || 'Adherente'; });
+  registro = mas ? registro.concat(data || []) : (data || []);
+  registroHayMas = (data || []).length === REGISTRO_POR_PAGINA;
+  renderRegistro();
+}
+function recortar(s, n = 80){ s = String(s ?? ''); return s.length > n ? s.slice(0, n) + '…' : s; }
+function valorLegible(campo, v){
+  if (v === null || v === undefined || v === '') return '(vacío)';
+  if (typeof v === 'boolean') return v ? 'Sí' : 'No';
+  if (['embarcacion_id','remo_id','chaleco_id'].includes(campo)){ const e = equipo.find(x => x.id === v); return e ? labelEquipoItem(e) : 'equipo'; }
+  if (['socio_id','asociado_a','resuelto_por','registrado_por','creado_por'].includes(campo)) return registroNombres[v] || 'adherente';
+  if (campo === 'periodo') return mesTexto(v);
+  if (campo === 'monto' || campo === 'monto_neto') return pesos(v);
+  if (campo === 'imagen_url') return 'foto';
+  if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(v)) return fechaHoraCorta(v);
+  if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) return fechaCorta(v);
+  if (VALOR_LEGIBLE[v]) return VALOR_LEGIBLE[v];
+  return recortar(v);
+}
+// "De qué" se trata el cambio, en palabras (ej. "Kayak 3", "Juan Pérez, octubre de 2026").
+function sujetoDelCambio(r){
+  const f = r.fila || {};
+  const persona = id => registroNombres[id] || 'adherente';
+  switch (r.tabla){
+    case 'perfiles': return [f.nombre, f.apellido].filter(Boolean).join(' ') || f.email || 'adherente';
+    case 'equipo': return labelEquipoItem(f);
+    case 'fichajes': return (f.es_esporadico ? (f.nombre_esporadico || 'esporádico') + ' (esporádico)' : persona(f.socio_id)) + (f.hora_ingreso ? ', ingreso ' + fechaHoraCorta(f.hora_ingreso) : '');
+    case 'cuotas': return persona(f.socio_id) + (f.periodo ? ', ' + mesTexto(f.periodo) : '');
+    case 'pagos_sin_asociar': return (f.nombre_pagador || 'sin nombre') + (f.monto ? ', ' + pesos(f.monto) : '');
+    case 'credenciales': return `"${f.nombre}" de ${persona(f.socio_id)}`;
+    case 'anuncios': return `"${recortar(f.titulo, 60)}"`;
+    case 'anuncio_comentarios': return `de ${persona(f.socio_id)}: "${recortar(f.texto, 60)}"`;
+    case 'terminos_condiciones': return 'versión ' + (f.version || '');
+    default: return '';
+  }
+}
+function renderRegistro(){
+  const cont = document.getElementById('staff-registro');
+  if (!cont) return;
+  if (registro.length === 0){ cont.innerHTML = '<p class="empty">Todavía no hay cambios registrados.</p>'; return; }
+  const verbo = { alta:'agregó', modificacion:'modificó', baja:'borró' };
+  cont.innerHTML = registro.map(r => {
+    const quien = r.usuario_nombre || (r.usuario_id ? (registroNombres[r.usuario_id] || 'Un usuario') : 'El sistema (automático)');
+    const cambios = r.accion === 'modificacion' && r.despues
+      ? Object.keys(r.despues).map(k => `<div class="hint" style="margin:2px 0 0;">${escaparHtml(NOMBRE_CAMPO[k] || k)}: ${escaparHtml(valorLegible(k, r.antes && r.antes[k]))} → <b>${escaparHtml(valorLegible(k, r.despues[k]))}</b></div>`).join('')
+      : '';
+    return `
+      <div class="history-item" style="display:block;">
+        <div><b>${escaparHtml(quien)}</b> ${verbo[r.accion]} ${escaparHtml(NOMBRE_TABLA[r.tabla] || r.tabla)} <b>${escaparHtml(sujetoDelCambio(r))}</b></div>
+        ${cambios}
+        <div class="hint" style="margin:3px 0 0;font-size:0.76rem;">${escaparHtml(fechaHoraCorta(r.creado_en))}</div>
+      </div>`;
+  }).join('') + (registroHayMas ? '<button class="btn btn-ghost" style="margin-top:10px;width:100%;" onclick="cargarRegistro(true)">Ver más</button>' : '');
 }
 </script>
 </body>

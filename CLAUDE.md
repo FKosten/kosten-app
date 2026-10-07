@@ -67,8 +67,11 @@ Fases 1, 2 y 3 funcionalmente completas y probadas en producción por Leo (Mac/S
 
 ## Decisiones de Leo (8/10/2026)
 - Alta de cuentas: además de mail y contraseña se va a pedir un CÓDIGO, sacado de un listado de socios activos que Leo va a pasar más adelante. Validarlo del lado de la base (no solo en pantalla).
-- Roles: admin = solo Leo; staff = comisión + quien trabaje en Kosten en la temporada; adherente = usuario común. Falta acordar el detalle de qué puede el staff (propuesta enviada a Leo).
-- Backups: por ahora sin pagar plan Pro; copia manual periódica con recordatorio.
+- Roles (decisión final): admin = solo Leo; staff = comisión + quien trabaje en Kosten en la temporada; adherente = usuario común. Staff y admin pueden hacer lo mismo (Leo no quiere complicarlo). A cambio: toda acción que modifica datos muestra `confirmarAccion()` con el detalle, y la base anota todo en `registro_cambios` (trigger `zz_registro_cambios`), visible en la pestaña Registro del staff.
+- Alertas de seguridad: se quedan solo con push (Leo descartó Telegram: van a ser 5-6 dispositivos de marcas distintas).
+- Códigos de alta: tabla `codigos_alta` (codigo en MAYÚSCULAS, dni, nombre opcional, usado_por/usado_en). Mientras esté vacía, el alta es libre; con filas, `handle_new_user` exige un código válido, lo consume y copia el DNI al perfil. Al cargar el listado: normalizar DNI (solo números) y marcar como usados los códigos de quienes ya tienen cuenta. Ojo: con códigos cargados, crear usuarios a mano desde el dashboard también va a pedir código.
+- Mails: la fundación no tiene dominio propio → SMTP con una cuenta de Gmail y contraseña de aplicación.
+- Backups: sin plan pago; copia manual con `supabase/backup-datos.sql` los días 1 y 15 (recordatorio programado), guardada fuera del repo.
 - Pendientes de esta etapa: mails con SMTP propio, segundo canal para alertas de seguridad (5-6 staff), historial de staff por fecha consultando al servidor (hoy carga solo los últimos 200 fichajes), fijar versión de supabase-js y generar el QR localmente.
 - La pantalla se actualiza cada 20 s con `refrescoActual()`; todo re-dibujado periódico de formularios va envuelto en `conservarFormulario()` para no pisar lo que el usuario está completando. Todo texto de usuarios que se muestre pasa por `escaparHtml()`.
 
