@@ -64,6 +64,8 @@ Fases 1, 2 y 3 funcionalmente completas y probadas en producción por Leo (Mac/S
 2. Probar de punta a punta Anuncios: publicar → aparece en staff → aparece en el adherente → llega el push.
 3. Verificar: el campo de hora estimada de salida puede mostrarse en formato 12hs AM/PM en algunos navegadores (Safari/Mac) en vez de 24hs (solo visual). También probar en producción el alta de esporádico, si no se hizo.
 4. Kiosco (cobro de baño y agua caliente para mate): no arrancado.
+5. Configurar SMTP con Gmail de la fundación (pasos ya dados a Leo: verificación en 2 pasos, contraseña de aplicación, Authentication → Emails → SMTP Settings con smtp.gmail.com:587, y subir Rate Limits de emails a 30/h). Leo lo hace más adelante.
+6. Cargar el listado de códigos de alta en `codigos_alta` cuando Leo lo pase (DNI + código, nombre opcional).
 
 ## Decisiones de Leo (8/10/2026)
 - Alta de cuentas: además de mail y contraseña se va a pedir un CÓDIGO, sacado de un listado de socios activos que Leo va a pasar más adelante. Validarlo del lado de la base (no solo en pantalla).
