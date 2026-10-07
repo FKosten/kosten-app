@@ -77,7 +77,7 @@ Deno.serve(async (_req: Request) => {
 
       if (minutosVencido >= 15 && !f.alerta_enviada) {
         try {
-          const nombre = f.es_esporadico ? (f.nombre_esporadico || "Un esporádico") : "Un socio";
+          const nombre = f.es_esporadico ? (f.nombre_esporadico || "Un esporádico") : "Un adherente";
           console.log(`check-fichajes: enviando alerta a staff (fichaje ${f.id})`);
           await enviarPushAStaff(
             supabase,

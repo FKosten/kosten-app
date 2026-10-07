@@ -42,7 +42,7 @@ Sistema de gestión para Fundación Kosten, una organización sin fines de lucro
 - credenciales: id, socio_id, nombre, fecha, vencimiento (opcional), registrado_por, certificado_por, created_at.
 - anuncio_likes (unique anuncio_id+socio_id) y anuncio_comentarios: likes y comentarios de adherentes en los anuncios.
 - anuncios: titulo, cuerpo, fecha_vigencia_hasta, creado_por, imagen_url. Trigger AFTER INSERT → `pg_net.http_post` → Edge Function `notificar-anuncio`. Se borran solos al vencer (`pg_cron`, job `kosten-limpiar-anuncios`).
-- Reglas de negocio: un adherente con la contribución vencida puede fichar, pero solo con equipo propio. Cada ítem (embarcación/remo/chaleco) puede ser del club o propio, de forma independiente.
+- Reglas de negocio: un adherente con la contribución vencida puede fichar, pero solo con equipo propio (lo valida también la base, trigger `on_fichaje_validar`). El estado disponible/en_uso del equipo lo cambia la base sola al fichar ingreso/salida (trigger `on_fichaje_equipo`); el frontend no debe tocarlo. Editar `equipo` es solo para staff/admin. Ver `supabase/2026-10-07-proteger-equipo.sql`. Cada ítem (embarcación/remo/chaleco) puede ser del club o propio, de forma independiente.
 
 ## Edge Functions
 - check-fichajes: la dispara `pg_cron` cada 1 minuto. Si pasó la hora estimada de salida y no se avisó, push de recordatorio al adherente. Si pasaron 15 min o más, push de alerta a staff/admin.

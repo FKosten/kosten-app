@@ -1145,7 +1145,7 @@ async function ficharIngreso(){
     hora_estimada_salida: est.toISOString(), marcado_por: 'socio'
   });
   if (error){ errEl.textContent = 'No se pudo fichar: ' + error.message; return; }
-  await Promise.all([embarcacion_id, remo_id, chaleco_id].filter(Boolean).map(id => sb.from('equipo').update({estado:'en_uso'}).eq('id', id)));
+  // El equipo pasa a "en uso" solo: lo hace un trigger en la base (on_fichaje_equipo).
   toast('Ingreso fichado. ¡Buena navegada!');
   await cargarDatos(); renderSocioContent();
   if (perfil.rol==='staff'||perfil.rol==='admin'){ renderStaffSummary(); renderStaffBoard(); renderStaffHistory(); }
@@ -1156,7 +1156,7 @@ async function ficharSalida(fichajeId, desdeStaff){
   if (!f) return;
   const { error } = await sb.from('fichajes').update({ hora_salida_real: nowIso(), estado:'cerrado', marcado_por: desdeStaff?'staff':'socio' }).eq('id', fichajeId);
   if (error){ toast('No se pudo marcar la salida: ' + error.message); return; }
-  await Promise.all([f.embarcacion_id, f.remo_id, f.chaleco_id].filter(Boolean).map(id => sb.from('equipo').update({estado:'disponible'}).eq('id', id)));
+  // El equipo vuelve a "disponible" solo: lo hace un trigger en la base (on_fichaje_equipo).
   toast(desdeStaff ? 'Salida marcada por staff.' : 'Salida fichada. ¡Bienvenido a tierra!');
   await cargarDatos(); renderSocioContent();
   if (perfil.rol==='staff'||perfil.rol==='admin'){ renderStaffSummary(); renderStaffBoard(); renderStaffHistory(); }
@@ -1182,7 +1182,7 @@ async function registrarEsporadico(){
     hora_estimada_salida: est.toISOString(), marcado_por: 'staff'
   });
   if (error){ errEl.textContent = 'No se pudo registrar: ' + error.message; return; }
-  await Promise.all([embarcacion_id, remo_id, chaleco_id].filter(Boolean).map(id => sb.from('equipo').update({estado:'en_uso'}).eq('id', id)));
+  // El equipo pasa a "en uso" solo: lo hace un trigger en la base (on_fichaje_equipo).
   closeModal('modal-esporadico');
   document.getElementById('esp-nombre').value=''; document.getElementById('esp-dni').value='';
   toast('Ingreso esporádico registrado.');
