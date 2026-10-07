@@ -11,7 +11,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Archivo+Expanded:wght@700;800&family=Karla:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<!-- Copias fijas dentro del proyecto (ver vendor/LEEME.md): no dependen de otro sitio ni cambian solas. -->
+<script src="vendor/supabase.js"></script>
+<script src="vendor/qrcode.js"></script>
 <style>
   :root{
     color-scheme: light dark;
@@ -178,6 +180,8 @@
   .toast.show{opacity:1;transform:translateX(-50%) translateY(-4px);}
   .errtext{color:var(--danger);font-size:0.82rem;min-height:1.1em;}
   [hidden]{display:none!important;}
+  .carnet-qr{width:220px;height:220px;margin:0 auto;border-radius:12px;background:#fff;padding:10px;}
+  .carnet-qr svg{display:block;width:100%;height:100%;}
 </style>
 </head>
 <body>
@@ -219,7 +223,10 @@ const VAPID_PUBLIC_KEY = "BNGyYA_7IvMTzwEEp8pTG6RiBMe4aqKB1aqcuLlbOR2ycwatUdOEyp
 let session = null;
 let perfil = null;
 let equipo = [];
-let fichajes = [];
+let fichajes = [];        // los que están en el agua ahora (de todos, si sos staff)
+let misFichajes = [];     // los propios, para Mi fichaje y la bitácora
+let historialFichajes = [];
+let historialPedido = 0;
 let tyc = null;
 let pollTimer = null;
 let refrescoActual = null;
@@ -262,6 +269,17 @@ function toast(msg){
   clearTimeout(t._h); t._h = setTimeout(()=>t.classList.remove('show'), 3200);
 }
 function root(){ return document.getElementById('app-boot'); }
+// QR del carnet, generado en el propio teléfono (anda sin internet).
+function qrSvg(texto){
+  try{
+    const q = qrcode(0, 'M');
+    q.addData(texto);
+    q.make();
+    return q.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
+  } catch(e){
+    return '<p class="hint" style="margin:0;">No se pudo generar el QR.</p>';
+  }
+}
 // Guarda lo que el usuario está completando dentro de un contenedor, ejecuta
 // fn (que lo vuelve a dibujar) y le devuelve los valores. Así la actualización
 // automática cada 20 s no borra lo que alguien está eligiendo o escribiendo.
@@ -664,16 +682,20 @@ async function guardarPerfil(){
 // APP PRINCIPAL (fichaje + staff)
 // =====================================================================
 async function cargarDatos(){
-  const [{ data: eq, error: e1 }, { data: fi, error: e2 }, { data: cr, error: e5 }] = await Promise.all([
+  // Antes se traían los últimos 200 fichajes de todos y de ahí se sacaba todo; con
+  // el tiempo los días viejos "desaparecían". Ahora cada pantalla pide lo suyo.
+  const [{ data: eq, error: e1 }, { data: fi, error: e2 }, { data: mf, error: e3 }, { data: cr, error: e5 }] = await Promise.all([
     sb.from('equipo').select('*'),
-    sb.from('fichajes').select('*, perfiles(nombre,apellido)').order('hora_ingreso', { ascending:false }).limit(200),
+    sb.from('fichajes').select('*, perfiles(nombre,apellido)').eq('estado', 'en_agua').order('hora_ingreso', { ascending:false }),
+    sb.from('fichajes').select('*').eq('socio_id', session.user.id).order('hora_ingreso', { ascending:false }).limit(500),
     sb.from('credenciales').select('*').eq('socio_id', session.user.id).order('fecha', { ascending:false })
   ]);
   if (e1) toast('Error leyendo equipo: '+e1.message);
-  if (e2) toast('Error leyendo fichajes: '+e2.message);
+  if (e2 || e3) toast('Error leyendo fichajes: '+(e2 || e3).message);
   if (e5) toast('Error leyendo credenciales: '+e5.message);
   equipo = eq || [];
   fichajes = fi || [];
+  misFichajes = mf || [];
   credencialesPropias = cr || [];
 }
 
@@ -892,7 +914,7 @@ async function renderApp(){
         <div style="text-align:center;">
           <p style="margin:0 0 4px;font-size:1.1rem;"><b>${escaparHtml(perfil.nombre)} ${escaparHtml(perfil.apellido)}</b></p>
           <p class="hint" style="margin:0 0 14px;">Adherente N.° <b style="color:var(--ink);">${perfil.numero_socio ?? '—'}</b></p>
-          <img src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent('KOSTEN-'+(perfil.numero_socio ?? perfil.id))}" width="220" height="220" alt="Código QR de adherente" style="border-radius:12px;background:#fff;padding:10px;"/>
+          <div class="carnet-qr" role="img" aria-label="Código QR de adherente">${qrSvg('KOSTEN-'+(perfil.numero_socio ?? perfil.id))}</div>
         </div>
         <div class="stack" style="margin-top:16px;">
           <label class="field"><span>DNI</span><input type="text" value="${escaparHtml(perfil.dni)}" disabled/></label>
@@ -1108,7 +1130,7 @@ function resolverSeleccion(selectId){
 
 function renderSocioContent(){
   const cont = document.getElementById('socio-content');
-  const activo = fichajes.find(f=>f.socio_id===session.user.id && f.estado==='en_agua');
+  const activo = misFichajes.find(f=>f.estado==='en_agua');
   const cuotaVencida = !!perfil.cuota_vencida;
   iniciarClima();
   const cuotaCard = cuotaVencida ? `
@@ -1181,7 +1203,7 @@ function renderMisCredenciales(){
   }</div>`;
 }
 function renderHistorial(){
-  const cerrados = fichajes.filter(f=>f.socio_id===session.user.id && f.estado==='cerrado').slice(0,5);
+  const cerrados = misFichajes.filter(f=>f.estado==='cerrado').slice(0,5);
   if (cerrados.length===0) return '';
   return `<div class="card"><h2>Historial reciente</h2>${
     cerrados.map(f=>`<div class="history-item"><span>${labelDe(f.embarcacion_id,'embarcacion')} · ${labelDe(f.remo_id,'remo')} · ${labelDe(f.chaleco_id,'chaleco')}</span><b>${fmtHora(f.hora_ingreso)} → ${f.hora_salida_real ? fmtHora(f.hora_salida_real) : '—'}</b></div>`).join('')
@@ -1226,15 +1248,23 @@ function renderStaffBoard(){
   }).join('');
 }
 
-function renderStaffHistory(){
+// Le pide a la base solo los fichajes del día elegido (de 00:00 a 24:00 hora local).
+async function renderStaffHistory(){
   const cont = document.getElementById('staff-history');
   const inputFecha = document.getElementById('hist-fecha');
   if (!cont || !inputFecha) return;
   if (!inputFecha.value) inputFecha.value = fechaLocal(nowIso());
   const fecha = inputFecha.value;
-  const delDia = fichajes
-    .filter(f => fechaLocal(f.hora_ingreso) === fecha)
-    .sort((a,b) => new Date(b.hora_ingreso) - new Date(a.hora_ingreso));
+  const pedido = ++historialPedido;
+  const desde = new Date(fecha + 'T00:00:00');
+  const hasta = new Date(desde); hasta.setDate(hasta.getDate() + 1);
+  const { data, error } = await sb.from('fichajes').select('*, perfiles(nombre,apellido)')
+    .gte('hora_ingreso', desde.toISOString()).lt('hora_ingreso', hasta.toISOString())
+    .order('hora_ingreso', { ascending:false });
+  if (pedido !== historialPedido) return;  // ya se eligió otra fecha mientras cargaba
+  if (error){ cont.innerHTML = `<p class="empty">No se pudo cargar el historial: ${escaparHtml(error.message)}</p>`; return; }
+  historialFichajes = data || [];
+  const delDia = historialFichajes;
   if (delDia.length === 0){ cont.innerHTML = '<p class="empty">No hay fichajes registrados ese día.</p>'; return; }
   cont.innerHTML = delDia.map(f=>{
     const nombreSocio = f.perfiles ? [f.perfiles.nombre, f.perfiles.apellido].filter(Boolean).join(' ') : '';
@@ -1284,7 +1314,7 @@ async function ficharIngreso(){
 }
 
 async function ficharSalida(fichajeId, desdeStaff){
-  const f = fichajes.find(x=>x.id===fichajeId);
+  const f = fichajes.find(x=>x.id===fichajeId) || misFichajes.find(x=>x.id===fichajeId);
   if (!f) return;
   if (desdeStaff){
     const ok = await confirmarAccion('¿Marcar la salida?', [
@@ -1780,8 +1810,7 @@ function isoDeDatetimeLocal(valor){
 function renderBitacora(){
   const cont = document.getElementById('socio-bitacora');
   if (!cont) return;
-  const propios = fichajes
-    .filter(f => f.socio_id === session.user.id)
+  const propios = misFichajes
     .sort((a,b) => new Date(b.hora_ingreso) - new Date(a.hora_ingreso));
 
   const formNuevo = bitacoraNuevoAbierto ? `
@@ -1892,7 +1921,7 @@ async function guardarBitacora(id){
     }
     payload.hora_salida_real = isoDeDatetimeLocal(salida);
   }
-  const f = fichajes.find(x => x.id === id);
+  const f = misFichajes.find(x => x.id === id);
   const cambios = [];
   if (f){
     if (new Date(payload.hora_ingreso).getTime() !== new Date(f.hora_ingreso).getTime()) cambios.push(`Entrada: ${fechaHoraCorta(f.hora_ingreso)} → ${fechaHoraCorta(payload.hora_ingreso)}`);

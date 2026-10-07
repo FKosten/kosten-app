@@ -9,7 +9,7 @@ Sistema de gestión para Fundación Kosten, una organización sin fines de lucro
 
 ## Stack
 - Backend: Supabase (Postgres + Auth + Realtime + Edge Functions), región São Paulo. Project URL: `https://cmwdkrgshsfrhtduszdq.supabase.co`. La publishable key está en `index.html` (es pública por diseño).
-- Frontend: una sola app web responsive, sin frameworks: `index.html` + `manifest.json` + `sw.js` + logo + íconos. Cliente JS oficial de Supabase desde CDN. PWA instalable (celu) y back office (compu), mismo código con vistas según rol.
+- Frontend: una sola app web responsive, sin frameworks: `index.html` + `manifest.json` + `sw.js` + logo + íconos. Cliente JS oficial de Supabase y generador de QR guardados como copias fijas en `vendor/` (ver `vendor/LEEME.md`; si se agregan archivos, sumarlos a SHELL_FILES de `sw.js` y subir CACHE_NAME). PWA instalable (celu) y back office (compu), mismo código con vistas según rol.
 - Hosting: Vercel conectado a este repo (`FKosten/kosten-app`, público). URL: `https://kosten-app-murex.vercel.app`. Cada push redeploya solo en 1-2 min.
 - Push: Web Push hecho a mano con Web Crypto (RFC 8291 + RFC 8292 VAPID), sin la librería `web-push`.
 - Pagos: Mercado Pago (débito automático existente + Checkout Pro para pagos puntuales), vía webhook a una Edge Function.
@@ -74,7 +74,7 @@ Fases 1, 2 y 3 funcionalmente completas y probadas en producción por Leo (Mac/S
 - Códigos de alta: tabla `codigos_alta` (codigo en MAYÚSCULAS, dni, nombre opcional, usado_por/usado_en). Mientras esté vacía, el alta es libre; con filas, `handle_new_user` exige un código válido, lo consume y copia el DNI al perfil. Al cargar el listado: normalizar DNI (solo números) y marcar como usados los códigos de quienes ya tienen cuenta. Ojo: con códigos cargados, crear usuarios a mano desde el dashboard también va a pedir código.
 - Mails: la fundación no tiene dominio propio → SMTP con una cuenta de Gmail y contraseña de aplicación.
 - Backups: sin plan pago; copia manual con `supabase/backup-datos.sql` los días 1 y 15 (recordatorio programado), guardada fuera del repo.
-- Pendientes de esta etapa: mails con SMTP propio, segundo canal para alertas de seguridad (5-6 staff), historial de staff por fecha consultando al servidor (hoy carga solo los últimos 200 fichajes), fijar versión de supabase-js y generar el QR localmente.
+- Datos de fichajes: `fichajes` = solo los que están en el agua; `misFichajes` = los propios (Mi fichaje y bitácora); el historial del staff pide a la base solo el día elegido (`renderStaffHistory`).
 - La pantalla se actualiza cada 20 s con `refrescoActual()`; todo re-dibujado periódico de formularios va envuelto en `conservarFormulario()` para no pisar lo que el usuario está completando. Todo texto de usuarios que se muestre pasa por `escaparHtml()`.
 
 ## Ideas a futuro (sin fecha)

@@ -3,7 +3,7 @@
 // app para que abra más rápido, y recibe/muestra las notificaciones
 // push (recordatorio de salida + alerta a staff).
 
-const CACHE_NAME = "kosten-shell-v1";
+const CACHE_NAME = "kosten-shell-v2";
 const SHELL_FILES = [
   "./",
   "./index.html",
@@ -11,6 +11,8 @@ const SHELL_FILES = [
   "./kosten-wordmark.png",
   "./icon-192.png",
   "./icon-512.png",
+  "./vendor/supabase.js",
+  "./vendor/qrcode.js",
 ];
 
 self.addEventListener("install", (event) => {
