@@ -180,6 +180,9 @@
   .toast.show{opacity:1;transform:translateX(-50%) translateY(-4px);}
   .errtext{color:var(--danger);font-size:0.82rem;min-height:1.1em;}
   [hidden]{display:none!important;}
+  .hora-24{display:flex;align-items:center;gap:6px;}
+  .hora-24 select{width:auto;min-width:76px;}
+  .hora-24 span{color:var(--ink-soft);}
   .carnet-qr{width:220px;height:220px;margin:0 auto;border-radius:12px;background:#fff;padding:10px;}
   .carnet-qr svg{display:block;width:100%;height:100%;}
 </style>
@@ -262,7 +265,26 @@ function nombreDeFichaje(f){
   if (f.es_esporadico) return (f.nombre_esporadico || 'Esporádico') + ' (esporádico)';
   return (f.perfiles ? [f.perfiles.nombre, f.perfiles.apellido].filter(Boolean).join(' ') : '') || 'Adherente';
 }
-function horaMasMinutos(mins){ const d = new Date(Date.now()+mins*60000); return pad(d.getHours())+':'+pad(d.getMinutes()); }
+// Hora sugerida dentro de X minutos, redondeada para arriba a múltiplos de 5.
+function horaMasMinutos(mins){ const d = new Date(Date.now()+mins*60000); d.setMinutes(Math.ceil(d.getMinutes()/5)*5, 0, 0); return pad(d.getHours())+':'+pad(d.getMinutes()); }
+// Selector de hora en 24 hs con dos desplegables (hora y minutos de a 5). El
+// campo de hora del navegador, en algunos equipos (Safari/Mac), se veía AM/PM.
+function selectorHoraHtml(id, valor){
+  const [h, m] = valor.split(':');
+  const opciones = (lista, elegido) => lista.map(x => `<option value="${x}" ${x===elegido?'selected':''}>${x}</option>`).join('');
+  const horas = Array.from({ length:24 }, (_, i) => pad(i));
+  const minutos = Array.from({ length:12 }, (_, i) => pad(i*5));
+  return `<span class="hora-24"><select id="${id}-h" aria-label="Hora">${opciones(horas, h)}</select><b>:</b><select id="${id}-m" aria-label="Minutos">${opciones(minutos, m)}</select><span>hs</span></span>`;
+}
+function leerHora(id){
+  const h = document.getElementById(id+'-h'), m = document.getElementById(id+'-m');
+  return h && m ? h.value + ':' + m.value : '';
+}
+function ponerHora(id, valor){
+  const [h, m] = valor.split(':');
+  document.getElementById(id+'-h').value = h;
+  document.getElementById(id+'-m').value = m;
+}
 function toast(msg){
   const t = document.getElementById('toast');
   t.textContent = msg; t.classList.add('show');
@@ -969,7 +991,7 @@ async function renderApp(){
           <label class="field"><span>Remo</span><select id="esp-remo"></select></label>
           <label class="field"><span>Chaleco</span><select id="esp-chaleco"></select></label>
         </div>
-        <label class="field"><span>Hora estimada de salida</span><input type="time" id="esp-hora"/></label>
+        <label class="field"><span>Hora estimada de salida</span>${selectorHoraHtml('esp-hora', horaMasMinutos(90))}</label>
         <p class="errtext" id="esp-err"></p>
         <div class="modal-actions">
           <button class="btn btn-ghost" onclick="closeModal('modal-esporadico')">Cancelar</button>
@@ -984,7 +1006,7 @@ async function renderApp(){
   renderAnunciosSocio();
   if (esStaff){
     renderStaffSummary(); renderStaffBoard(); renderStaffHistory(); renderStaffInventario();
-    refreshEquipoSelect('esp-embarcacion','embarcacion'); refreshEquipoSelect('esp-remo','remo'); refreshEquipoSelect('esp-chaleco','chaleco'); document.getElementById('esp-hora').value = horaMasMinutos(90);
+    refreshEquipoSelect('esp-embarcacion','embarcacion'); refreshEquipoSelect('esp-remo','remo'); refreshEquipoSelect('esp-chaleco','chaleco'); ponerHora('esp-hora', horaMasMinutos(90));
     await cargarDatosStaffCuotas(); refrescarSelectSocios(); renderStaffVencidos(); renderPagosSinAsociar();
     await cargarDatosStaffCredenciales(); refrescarSelectSociosCredencial(); renderStaffCredenciales();
     document.getElementById('cred-fecha').value = fechaLocal(nowIso());
@@ -1070,7 +1092,7 @@ function setInvTab(cat){
 function abrirModalEsporadico(){
   // Se recarga el equipo disponible al abrir, para no ofrecer algo que ya se llevó otro.
   refreshEquipoSelect('esp-embarcacion','embarcacion'); refreshEquipoSelect('esp-remo','remo'); refreshEquipoSelect('esp-chaleco','chaleco');
-  document.getElementById('esp-hora').value = horaMasMinutos(90);
+  ponerHora('esp-hora', horaMasMinutos(90));
   document.getElementById('esp-err').textContent = '';
   openModal('modal-esporadico');
 }
@@ -1179,7 +1201,7 @@ function renderSocioContent(){
           <label class="field"><span>Remo</span><select id="nf-remo"></select></label>
           <label class="field"><span>Chaleco</span><select id="nf-chaleco"></select></label>
         </div>
-        <label class="field" style="margin-top:10px;"><span>Hora estimada de salida</span><input type="time" id="nf-hora" value="${horaMasMinutos(90)}"/></label>
+        <label class="field" style="margin-top:10px;"><span>Hora estimada de salida</span>${selectorHoraHtml('nf-hora', horaMasMinutos(90))}</label>
         <p class="errtext" id="nf-err"></p>
         <button class="btn btn-primary btn-big" style="margin-top:14px;" onclick="ficharIngreso()">FICHAR INGRESO</button>
       </div>
@@ -1288,7 +1310,7 @@ async function renderStaffHistory(){
 // =====================================================================
 async function ficharIngreso(){
   const errEl = document.getElementById('nf-err');
-  const hora = document.getElementById('nf-hora').value;
+  const hora = leerHora('nf-hora');
   if (!hora){ errEl.textContent = 'Poné una hora estimada de salida.'; return; }
   if (faltaElegirEquipo(['nf-embarcacion','nf-remo','nf-chaleco'])){ errEl.textContent = 'Elegí embarcación, remo y chaleco (o marcá que traés el tuyo).'; return; }
   const embarcacion_id = resolverSeleccion('nf-embarcacion');
@@ -1336,7 +1358,7 @@ async function registrarEsporadico(){
   const errEl = document.getElementById('esp-err');
   const nombre = document.getElementById('esp-nombre').value.trim();
   const dni = document.getElementById('esp-dni').value.trim();
-  const hora = document.getElementById('esp-hora').value;
+  const hora = leerHora('esp-hora');
   if (!nombre){ errEl.textContent = 'Falta el nombre.'; return; }
   if (!hora){ errEl.textContent = 'Poné una hora estimada de salida.'; return; }
   if (faltaElegirEquipo(['esp-embarcacion','esp-remo','esp-chaleco'])){ errEl.textContent = 'Elegí embarcación, remo y chaleco (o marcá que trae el suyo).'; return; }

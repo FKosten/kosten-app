@@ -62,8 +62,8 @@ Fases 1, 2 y 3 funcionalmente completas y probadas en producción por Leo (Mac/S
 ## Pendiente
 1. Activar Mercado Pago (próximo paso confirmado). El código de `mp-webhook` y `crear-pago-cuota` TODAVÍA NO EXISTE (confirmado por Leo, oct 2026): hay que escribirlo cuando Leo tenga acceso a la cuenta de MP. `index.html` ya tiene una llamada a `/functions/v1/crear-pago-cuota`. Pasos: (a) Leo consigue el `MP_ACCESS_TOKEN` de la cuenta de la fundación (lo administra el tesorero); (b) deploy de ambas funciones; (c) cargar `MP_ACCESS_TOKEN` como Secret; (d) dar de alta la URL de `mp-webhook` en Mercado Pago Developers, evento "Pagos"; (e) confirmar Verify JWT; (f) probar con un pago y revisar `pagos_sin_asociar`; (g) recién ahí activar el cron de recálculo diario de vencidas (`actualizar_estado_cuotas()`, hoy comentado en `kosten-cuotas.sql` a propósito, para no marcar a todos como vencidos de entrada); (h) reemplazar el placeholder por la pantalla real. Política: débito automático el día 7, reintento de MP unos días después, vencida recién el día 11. Contribución: $15.000/mes.
 2. Probar de punta a punta Anuncios: publicar → aparece en staff → aparece en el adherente → llega el push.
-3. Verificar: el campo de hora estimada de salida puede mostrarse en formato 12hs AM/PM en algunos navegadores (Safari/Mac) en vez de 24hs (solo visual). También probar en producción el alta de esporádico, si no se hizo.
-4. Kiosco (cobro de baño y agua caliente para mate): no arrancado.
+3. Probar en producción el alta de esporádico, si no se hizo. (La hora estimada de salida ya usa selectores propios en 24 hs; la bitácora todavía usa `datetime-local` del navegador.)
+4. Kiosco (cobro de baño y agua caliente para mate): EN ESPERA por decisión de Leo; falta definir cómo funcionaría.
 5. Configurar SMTP con Gmail de la fundación (pasos ya dados a Leo: verificación en 2 pasos, contraseña de aplicación, Authentication → Emails → SMTP Settings con smtp.gmail.com:587, y subir Rate Limits de emails a 30/h). Leo lo hace más adelante.
 6. Cargar el listado de códigos de alta en `codigos_alta` cuando Leo lo pase (DNI + código, nombre opcional).
 
@@ -82,7 +82,7 @@ Fases 1, 2 y 3 funcionalmente completas y probadas en producción por Leo (Mac/S
 - Cámara EZVIZ en vivo para que los adherentes vean el mar. EZVIZ usa su propio Open Platform/SDK con tokens temporales (pedirlos desde una Edge Function, nunca exponer claves en el frontend); hay que revisar los límites del plan. Alternativa: RTSP local + relay a HLS, que suma infraestructura 24/7.
 - Avisos de vencimiento de credenciales con push.
 - Migrar a app nativa con Capacitor.
-- Los T&C hay que redactarlos y que los revise un abogado antes de publicarlos, por tratarse de actividades náuticas con riesgo.
+- T&C: hoy rige un borrador de un párrafo (versión "borrador-1" en `terminos_condiciones`, cargado 3 veces igual). Hay un borrador completo para el abogado en https://claude.ai/code/artifact/e53dff0a-d6c3-46d6-a685-0fba1c46d33e. Cuando esté aprobado, cargarlo como versión nueva (los adherentes deberían volver a aceptarlo: hoy la app no lo pide si ya aceptaron una versión anterior).
 
 ## Cómo trabajar acá
 - Cambios al frontend: editar `index.html`/`manifest.json`/`sw.js`, commit y push; Vercel redeploya solo.
