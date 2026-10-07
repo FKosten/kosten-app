@@ -65,6 +65,13 @@ Fases 1, 2 y 3 funcionalmente completas y probadas en producción por Leo (Mac/S
 3. Verificar: el campo de hora estimada de salida puede mostrarse en formato 12hs AM/PM en algunos navegadores (Safari/Mac) en vez de 24hs (solo visual). También probar en producción el alta de esporádico, si no se hizo.
 4. Kiosco (cobro de baño y agua caliente para mate): no arrancado.
 
+## Decisiones de Leo (8/10/2026)
+- Alta de cuentas: además de mail y contraseña se va a pedir un CÓDIGO, sacado de un listado de socios activos que Leo va a pasar más adelante. Validarlo del lado de la base (no solo en pantalla).
+- Roles: admin = solo Leo; staff = comisión + quien trabaje en Kosten en la temporada; adherente = usuario común. Falta acordar el detalle de qué puede el staff (propuesta enviada a Leo).
+- Backups: por ahora sin pagar plan Pro; copia manual periódica con recordatorio.
+- Pendientes de esta etapa: mails con SMTP propio, segundo canal para alertas de seguridad (5-6 staff), historial de staff por fecha consultando al servidor (hoy carga solo los últimos 200 fichajes), fijar versión de supabase-js y generar el QR localmente.
+- La pantalla se actualiza cada 20 s con `refrescoActual()`; todo re-dibujado periódico de formularios va envuelto en `conservarFormulario()` para no pisar lo que el usuario está completando. Todo texto de usuarios que se muestre pasa por `escaparHtml()`.
+
 ## Ideas a futuro (sin fecha)
 - "Quién está en el club" (fin social: "veo quién está y decido si voy"): botón manual "Estoy en el club" que se apaga solo a las pocas horas, con una pestaña visible para los adherentes. Se descartó el GPS automático porque la ubicación en segundo plano no anda bien en PWA, sobre todo en iPhone. Con Capacitor se podría automatizar.
 - Cámara EZVIZ en vivo para que los adherentes vean el mar. EZVIZ usa su propio Open Platform/SDK con tokens temporales (pedirlos desde una Edge Function, nunca exponer claves en el frontend); hay que revisar los límites del plan. Alternativa: RTSP local + relay a HLS, que suma infraestructura 24/7.

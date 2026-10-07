@@ -5,6 +5,8 @@
 // datos llama sola a esta función (ver el trigger en kosten-fase3.sql)
 // y esta le manda una notificación push a todos los que tengan las
 // notificaciones activadas, avisando que hay una novedad.
+// El texto de la notificación es siempre el mismo (no el del anuncio):
+// así no se corta ni falla con anuncios largos, y el detalle se lee en la app.
 //
 // Usa exactamente el mismo motor de envío de Web Push (Web Crypto,
 // sin librerías externas) que ya está funcionando en check-fichajes.
@@ -40,7 +42,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: anuncio, error: errAnuncio } = await supabase
       .from("anuncios")
-      .select("titulo, cuerpo")
+      .select("id")
       .eq("id", anuncioId)
       .maybeSingle();
 
@@ -60,7 +62,7 @@ Deno.serve(async (req: Request) => {
       try {
         await enviarPush(
           { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth },
-          JSON.stringify({ title: "Kosten — " + anuncio.titulo, body: anuncio.cuerpo })
+          JSON.stringify({ title: "Kosten", body: "¡Hay un anuncio nuevo de Kosten!" })
         );
         enviados++;
       } catch (err: any) {

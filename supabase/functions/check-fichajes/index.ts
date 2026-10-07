@@ -77,12 +77,12 @@ Deno.serve(async (_req: Request) => {
 
       if (minutosVencido >= 15 && !f.alerta_enviada) {
         try {
-          const nombre = f.es_esporadico ? (f.nombre_esporadico || "Un esporádico") : "Un adherente";
+          const nombre = await nombreDelFichaje(supabase, f);
           console.log(`check-fichajes: enviando alerta a staff (fichaje ${f.id})`);
           await enviarPushAStaff(
             supabase,
             "Kosten — Alerta de fichaje",
-            `${nombre} no fichó su salida (vencida hace más de 15 minutos). Revisá el panel de Staff/Comisión.`
+            `${nombre} no fichó su salida (pasaron más de 15 minutos de su hora estimada). Revisá el panel de Staff/Comisión.`
           );
           await supabase.from("fichajes").update({ alerta_enviada: true }).eq("id", f.id);
           alertasEnviadas++;
@@ -116,6 +116,14 @@ function jsonResponse(obj: unknown, status = 200) {
   });
 }
 
+// Nombre de quien está en el agua, para que el staff sepa a quién buscar.
+async function nombreDelFichaje(supabase: any, f: any): Promise<string> {
+  if (f.es_esporadico) return `${f.nombre_esporadico || "Un esporádico"} (esporádico)`;
+  if (!f.socio_id) return "Un adherente";
+  const { data: p } = await supabase.from("perfiles").select("nombre, apellido").eq("id", f.socio_id).maybeSingle();
+  return [p?.nombre, p?.apellido].filter(Boolean).join(" ") || "Un adherente";
+}
+
 async function enviarPushAUsuario(supabase: any, userId: string, title: string, body: string) {
   const { data: subs } = await supabase.from("push_subscriptions").select("*").eq("user_id", userId);
   await enviarATodas(supabase, subs ?? [], title, body);
@@ -129,6 +137,9 @@ async function enviarPushAStaff(supabase: any, title: string, body: string) {
   await enviarATodas(supabase, subs ?? [], title, body);
 }
 
+// Manda a cada dispositivo por separado. Si uno falla, se registra en los
+// logs y se sigue con los demás: antes cortaba todo y, como el aviso no
+// quedaba marcado como enviado, se repetía cada minuto en los que sí andaban.
 async function enviarATodas(supabase: any, subs: any[], title: string, body: string) {
   for (const s of subs) {
     try {
@@ -139,9 +150,10 @@ async function enviarATodas(supabase: any, subs: any[], title: string, body: str
     } catch (err: any) {
       const status = err?.statusCode;
       if (status === 404 || status === 410) {
+        // El dispositivo ya no existe (app desinstalada, permiso quitado): se borra.
         await supabase.from("push_subscriptions").delete().eq("id", s.id);
       } else {
-        throw err;
+        console.error(`check-fichajes: fallo enviando a la suscripción ${s.id}:`, err instanceof Error ? err.message : String(err));
       }
     }
   }

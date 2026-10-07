@@ -210,6 +210,7 @@ let equipo = [];
 let fichajes = [];
 let tyc = null;
 let pollTimer = null;
+let refrescoActual = null;
 let socios = [];
 let pagosSinAsociar = [];
 let credencialesPropias = [];
@@ -221,6 +222,7 @@ let anuncioComentarios = [];
 let bitacoraEditando = null;
 let bitacoraNuevoAbierto = false;
 const UMBRAL_VIENTO_ALERTA_KMH = 40;
+const MONTO_CONTRIBUCION = 15000; // contribución mensual en pesos
 let climaData = null;
 let climaTimer = null;
 
@@ -241,6 +243,47 @@ function toast(msg){
   clearTimeout(t._h); t._h = setTimeout(()=>t.classList.remove('show'), 3200);
 }
 function root(){ return document.getElementById('app-boot'); }
+// Guarda lo que el usuario está completando dentro de un contenedor, ejecuta
+// fn (que lo vuelve a dibujar) y le devuelve los valores. Así la actualización
+// automática cada 20 s no borra lo que alguien está eligiendo o escribiendo.
+function conservarFormulario(cont, fn){
+  if (!cont) return fn();
+  const campos = {};
+  cont.querySelectorAll('input[id], select[id], textarea[id]').forEach(el => {
+    if (el.type === 'file') return;
+    campos[el.id] = el.type === 'checkbox' ? el.checked : el.value;
+  });
+  const foco = document.activeElement && cont.contains(document.activeElement) ? document.activeElement.id : null;
+  fn();
+  Object.entries(campos).forEach(([id, valor]) => {
+    const el = document.getElementById(id);
+    if (!el || !cont.contains(el)) return;
+    if (el.type === 'checkbox'){ el.checked = valor; return; }
+    // Si lo que había elegido ya no está (ej. otro se llevó ese kayak), queda en "Elegí…".
+    if (el.tagName === 'SELECT' && ![...el.options].some(o => o.value === valor)) return;
+    el.value = valor;
+  });
+  if (foco){ const el = document.getElementById(foco); if (el) el.focus(); }
+}
+// Convierte la hora "HH:MM" elegida en la fecha/hora estimada de salida.
+// Si la hora ya pasó hace poco, casi seguro es un error de tipeo: se pide
+// corregirla en vez de asumir "mañana" (eso dejaba la alerta para 24 h después).
+function calcularHoraEstimada(hora){
+  const [hh,mm] = hora.split(':').map(Number);
+  const est = new Date(); est.setHours(hh,mm,0,0);
+  const ahora = Date.now();
+  if (est.getTime() <= ahora){
+    if (ahora - est.getTime() < 6*3600000) return { error: 'Esa hora ya pasó. Poné a qué hora pensás salir del agua.' };
+    est.setDate(est.getDate()+1);
+  }
+  if (est.getTime() - ahora > 12*3600000) return { error: 'La hora estimada de salida tiene que ser dentro de las próximas 12 horas.' };
+  return { est };
+}
+// Todo texto que escribe un usuario (nombres, comentarios, notas, etc.) pasa
+// por acá antes de mostrarse, para que nadie pueda meter código en la página.
+function escaparHtml(s){
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
 
 // =====================================================================
 // CLIMA Y MAREAS (resumen en Mi fichaje + links a Windguru/Wisuki)
@@ -359,6 +402,7 @@ async function boot(){
 
 async function render(){
   if (pollTimer){ clearInterval(pollTimer); pollTimer = null; }
+  refrescoActual = null;
   if (modoRecuperarPassword){
     renderNuevaPassword();
     return;
@@ -504,6 +548,9 @@ function traducirError(msg){
   if (/already registered|already exists/i.test(msg)) return 'Ese email ya tiene una cuenta creada.';
   if (/invalid login credentials/i.test(msg)) return 'Email o contraseña incorrectos.';
   if (/email not confirmed/i.test(msg)) return 'Todavía no confirmaste tu email — revisá tu casilla.';
+  if (/perfiles_dni_unico/.test(msg)) return 'Ese DNI ya está registrado en otra cuenta. Si es tuyo, avisale a la comisión.';
+  if (/fichajes_un_ingreso_abierto/.test(msg)) return 'Ya tenés un ingreso abierto. Fichá la salida antes de volver a entrar.';
+  if (/equipo_numero_unico/.test(msg)) return 'Ya existe un equipo con ese número.';
   return msg;
 }
 async function cerrarSesion(){
@@ -532,18 +579,18 @@ async function renderCompletarPerfil(){
       <p class="hint">Estos datos quedan disponibles para la comisión de Fundación Kosten.</p>
       <div class="stack">
         <div class="row2">
-          <label class="field"><span>Nombre</span><input type="text" id="cp-nombre" value="${p.nombre||''}"/></label>
-          <label class="field"><span>Apellido</span><input type="text" id="cp-apellido" value="${p.apellido||''}"/></label>
+          <label class="field"><span>Nombre</span><input type="text" id="cp-nombre" value="${escaparHtml(p.nombre)}"/></label>
+          <label class="field"><span>Apellido</span><input type="text" id="cp-apellido" value="${escaparHtml(p.apellido)}"/></label>
         </div>
         <div class="row2">
-          <label class="field"><span>DNI</span><input type="text" id="cp-dni" value="${p.dni||''}"/></label>
-          <label class="field"><span>Teléfono</span><input type="tel" id="cp-telefono" value="${p.telefono||''}"/></label>
+          <label class="field"><span>DNI</span><input type="text" id="cp-dni" value="${escaparHtml(p.dni)}"/></label>
+          <label class="field"><span>Teléfono</span><input type="tel" id="cp-telefono" value="${escaparHtml(p.telefono)}"/></label>
         </div>
-        <label class="field"><span>Contacto de emergencia</span><input type="text" id="cp-emergencia" placeholder="Nombre y teléfono" value="${p.contacto_emergencia||''}"/></label>
+        <label class="field"><span>Contacto de emergencia</span><input type="text" id="cp-emergencia" placeholder="Nombre y teléfono" value="${escaparHtml(p.contacto_emergencia)}"/></label>
 
         <div>
           <label class="field"><span>Términos y condiciones</span></label>
-          <div class="tyc-box">${tyc ? tyc.texto : 'No se pudieron cargar los términos y condiciones — probá recargar la página.'}</div>
+          <div class="tyc-box">${tyc ? escaparHtml(tyc.texto) : 'No se pudieron cargar los términos y condiciones — probá recargar la página.'}</div>
           <label class="checkline" style="margin-top:10px;">
             <input type="checkbox" id="cp-tyc" ${p.acepta_tyc?'checked':''}/>
             <span>Acepto los términos y condiciones de la Fundación.</span>
@@ -559,12 +606,13 @@ async function renderCompletarPerfil(){
 async function guardarPerfil(){
   const nombre = document.getElementById('cp-nombre').value.trim();
   const apellido = document.getElementById('cp-apellido').value.trim();
-  const dni = document.getElementById('cp-dni').value.trim();
+  const dni = document.getElementById('cp-dni').value.replace(/\D/g, ''); // solo números, sin puntos
   const telefono = document.getElementById('cp-telefono').value.trim();
   const contacto_emergencia = document.getElementById('cp-emergencia').value.trim();
   const aceptaTyc = document.getElementById('cp-tyc').checked;
   const errEl = document.getElementById('cp-err');
   if (!nombre || !apellido || !dni){ errEl.textContent = 'Completá nombre, apellido y DNI.'; return; }
+  if (dni.length < 6){ errEl.textContent = 'Revisá el DNI: tiene que tener al menos 6 números.'; return; }
   if (!aceptaTyc){ errEl.textContent = 'Falta aceptar los términos y condiciones.'; return; }
   const payload = { nombre, apellido, dni, telefono, contacto_emergencia, acepta_tyc: true };
   if (!perfil.acepta_tyc){
@@ -572,7 +620,7 @@ async function guardarPerfil(){
     payload.version_tyc = tyc ? tyc.version : null;
   }
   const { error } = await sb.from('perfiles').update(payload).eq('id', session.user.id);
-  if (error){ errEl.textContent = 'No se pudo guardar: ' + error.message; return; }
+  if (error){ errEl.textContent = 'No se pudo guardar: ' + traducirError(error.message); return; }
   await render();
 }
 
@@ -625,7 +673,7 @@ async function renderApp(){
         <span class="suffix">Adherentes</span>
       </div>
       <div style="display:flex;align-items:center;gap:10px;">
-        <span class="hello">Hola, <b>${perfil.nombre}</b></span>
+        <span class="hello">Hola, <b>${escaparHtml(perfil.nombre)}</b></span>
         <button class="btn btn-ghost" style="padding:8px 12px;" onclick="abrirModalCarnet()" title="Mi carnet">🪪</button>
         <button class="signout" onclick="cerrarSesion()">Salir</button>
       </div>
@@ -678,9 +726,9 @@ async function renderApp(){
           <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:2px;">
             <div>
               <h2 style="margin-bottom:0;">En el agua ahora</h2>
-              <p class="hint">🟡 pasó la hora estimada de salida · 🔴 hace más de 30 min que debería haber salido.</p>
+              <p class="hint">🟡 pasó la hora estimada de salida · 🔴 hace más de 15 min que debería haber salido (ya se avisó al staff).</p>
             </div>
-            <button class="btn btn-primary" onclick="openModal('modal-esporadico')">+ Registrar esporádico</button>
+            <button class="btn btn-primary" onclick="abrirModalEsporadico()">+ Registrar esporádico</button>
           </div>
           <div id="staff-board"></div>
         </div>
@@ -707,6 +755,9 @@ async function renderApp(){
           <div style="margin-bottom:16px;">
             <label class="field" style="margin-bottom:8px;"><span>Marcar contribución del mes como pagada</span>
               <select id="cuota-socio-select"></select>
+            </label>
+            <label class="field" style="margin-bottom:8px;"><span>Monto</span>
+              <input type="number" id="cuota-monto" min="0" step="1" value="${MONTO_CONTRIBUCION}"/>
             </label>
             <button class="btn btn-ghost" onclick="marcarCuotaManual()">Marcar como pagada (este mes)</button>
           </div>
@@ -789,15 +840,15 @@ async function renderApp(){
       <div class="modal">
         <h3 style="text-align:center;">Mi carnet</h3>
         <div style="text-align:center;">
-          <p style="margin:0 0 4px;font-size:1.1rem;"><b>${perfil.nombre} ${perfil.apellido||''}</b></p>
+          <p style="margin:0 0 4px;font-size:1.1rem;"><b>${escaparHtml(perfil.nombre)} ${escaparHtml(perfil.apellido)}</b></p>
           <p class="hint" style="margin:0 0 14px;">Adherente N.° <b style="color:var(--ink);">${perfil.numero_socio ?? '—'}</b></p>
           <img src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent('KOSTEN-'+(perfil.numero_socio ?? perfil.id))}" width="220" height="220" alt="Código QR de adherente" style="border-radius:12px;background:#fff;padding:10px;"/>
         </div>
         <div class="stack" style="margin-top:16px;">
-          <label class="field"><span>DNI</span><input type="text" value="${perfil.dni||''}" disabled/></label>
-          <label class="field"><span>Email</span><input type="text" value="${perfil.email||''}" disabled/></label>
-          <label class="field"><span>Teléfono</span><input type="text" id="carnet-telefono" value="${perfil.telefono||''}"/></label>
-          <label class="field"><span>Contacto de emergencia</span><input type="text" id="carnet-contacto-emergencia" value="${perfil.contacto_emergencia||''}"/></label>
+          <label class="field"><span>DNI</span><input type="text" value="${escaparHtml(perfil.dni)}" disabled/></label>
+          <label class="field"><span>Email</span><input type="text" value="${escaparHtml(perfil.email)}" disabled/></label>
+          <label class="field"><span>Teléfono</span><input type="text" id="carnet-telefono" value="${escaparHtml(perfil.telefono)}"/></label>
+          <label class="field"><span>Contacto de emergencia</span><input type="text" id="carnet-contacto-emergencia" value="${escaparHtml(perfil.contacto_emergencia)}"/></label>
         </div>
         <p class="hint" style="margin:8px 0 0;">El nombre, el DNI y el email no se pueden modificar. Si hay un error en esos datos, avisale a staff/comisión.</p>
         <p class="errtext" id="carnet-err"></p>
@@ -870,21 +921,24 @@ async function renderApp(){
   }
   renderPushBanner();
 
-  pollTimer = setInterval(async () => {
+  refrescoActual = async () => {
     await refrescarPerfil();
     await cargarDatos();
-    renderSocioContent();
+    conservarFormulario(document.getElementById('socio-content'), renderSocioContent);
     renderCertificadosTab();
-    if (socioTabActual === 'bitacora') renderBitacora();
+    if (socioTabActual === 'bitacora') conservarFormulario(document.getElementById('socio-bitacora'), renderBitacora);
     await cargarAnuncios();
-    renderAnunciosSocio();
+    conservarFormulario(document.getElementById('socio-anuncios'), renderAnunciosSocio);
     if (esStaff){
       renderStaffSummary(); renderStaffBoard(); renderStaffHistory(); renderStaffInventario();
-      await cargarDatosStaffCuotas(); refrescarSelectSocios(); renderStaffVencidos(); renderPagosSinAsociar();
+      await cargarDatosStaffCuotas();
+      conservarFormulario(document.getElementById('staffsub-cuotas'), () => { refrescarSelectSocios(); renderStaffVencidos(); renderPagosSinAsociar(); });
       await cargarDatosStaffCredenciales(); renderStaffCredenciales();
       renderStaffAnuncios();
     }
-  }, 20000);
+  };
+  // Con la app en segundo plano no se consulta nada (ahorra batería y datos).
+  pollTimer = setInterval(() => { if (!document.hidden) refrescoActual(); }, 20000);
 }
 
 function setMainTab(which){
@@ -935,6 +989,13 @@ function setInvTab(cat){
   ['kayak','sup','remo','chaleco'].forEach(c => document.getElementById('invtab-'+c).classList.toggle('active', c===cat));
   renderStaffInventario();
 }
+function abrirModalEsporadico(){
+  // Se recarga el equipo disponible al abrir, para no ofrecer algo que ya se llevó otro.
+  refreshEquipoSelect('esp-embarcacion','embarcacion'); refreshEquipoSelect('esp-remo','remo'); refreshEquipoSelect('esp-chaleco','chaleco');
+  document.getElementById('esp-hora').value = horaMasMinutos(90);
+  document.getElementById('esp-err').textContent = '';
+  openModal('modal-esporadico');
+}
 function openModal(id){ document.getElementById(id).classList.add('open'); }
 function closeModal(id){ document.getElementById(id).classList.remove('open'); }
 
@@ -943,7 +1004,7 @@ function estadoFichaje(f){
   const est = new Date(f.hora_estimada_salida).getTime();
   const ahora = Date.now();
   if (ahora < est) return 'ok';
-  if (ahora - est < 30*60000) return 'recordatorio';
+  if (ahora - est < 15*60000) return 'recordatorio';
   return 'alerta';
 }
 function labelEquipoItem(e){
@@ -967,8 +1028,9 @@ function refreshEquipoSelect(selectId, tipo, soloPropio){
   }
   const disponibles = equipo.filter(e => e.tipo===tipo && e.estado==='disponible')
     .sort((a,b)=> (a.subtipo||'').localeCompare(b.subtipo||'') || a.numero-b.numero);
-  sel.innerHTML = disponibles.map(e=>`<option value="${e.id}">${labelEquipoItem(e)}</option>`).join('') + `<option value="propio">${labelPropio(tipo)}</option>`;
+  sel.innerHTML = `<option value="">Elegí…</option>` + disponibles.map(e=>`<option value="${e.id}">${labelEquipoItem(e)}</option>`).join('') + `<option value="propio">${labelPropio(tipo)}</option>`;
 }
+function faltaElegirEquipo(ids){ return ids.some(id => !document.getElementById(id).value); }
 function resolverSeleccion(selectId){
   const val = document.getElementById(selectId).value;
   return (!val || val === 'propio') ? null : val;
@@ -1044,7 +1106,7 @@ function renderMisCredenciales(){
   return `<div class="card"><h2>Mis certificados</h2>${
     credencialesPropias.map(c => {
       const vencida = c.vencimiento && c.vencimiento < hoy;
-      return `<div class="history-item"><span>${c.nombre}${c.certificado_por ? ' <span class="hint" style="margin:0;">— '+c.certificado_por+'</span>' : ''}${vencida ? ' <span class="tag-esp" style="color:var(--danger);border-color:var(--danger);">vencida</span>' : ''}</span><b>${c.fecha}${c.vencimiento ? ' → vence ' + c.vencimiento : ''}</b></div>`;
+      return `<div class="history-item"><span>${escaparHtml(c.nombre)}${c.certificado_por ? ' <span class="hint" style="margin:0;">— '+escaparHtml(c.certificado_por)+'</span>' : ''}${vencida ? ' <span class="tag-esp" style="color:var(--danger);border-color:var(--danger);">vencida</span>' : ''}</span><b>${c.fecha}${c.vencimiento ? ' → vence ' + c.vencimiento : ''}</b></div>`;
     }).join('')
   }</div>`;
 }
@@ -1082,7 +1144,7 @@ function renderStaffBoard(){
     const nombre = f.es_esporadico ? (f.nombre_esporadico||'Esporádico') : (nombreSocio || 'Adherente');
     return `
       <div class="board-row">
-        <div class="board-name"><span class="status-dot ${dot}"></span>${nombre}${f.es_esporadico ? '<span class="tag-esp">esporádico</span>' : ''}</div>
+        <div class="board-name"><span class="status-dot ${dot}"></span>${escaparHtml(nombre)}${f.es_esporadico ? '<span class="tag-esp">esporádico</span>' : ''}</div>
         <div class="board-equip">
           <span class="equip-tag">🛶 ${labelDe(f.embarcacion_id,'embarcacion')}</span>
           <span class="equip-tag">🪛 ${labelDe(f.remo_id,'remo')}</span>
@@ -1110,7 +1172,7 @@ function renderStaffHistory(){
     const salida = f.estado === 'cerrado' && f.hora_salida_real ? fmtHora(f.hora_salida_real) : 'sigue en el agua';
     return `
       <div class="board-row">
-        <div class="board-name">${nombre}${f.es_esporadico ? '<span class="tag-esp">esporádico</span>' : ''}</div>
+        <div class="board-name">${escaparHtml(nombre)}${f.es_esporadico ? '<span class="tag-esp">esporádico</span>' : ''}</div>
         <div class="board-equip">
           <span class="equip-tag">🛶 ${labelDe(f.embarcacion_id,'embarcacion')}</span>
           <span class="equip-tag">🪛 ${labelDe(f.remo_id,'remo')}</span>
@@ -1128,6 +1190,7 @@ async function ficharIngreso(){
   const errEl = document.getElementById('nf-err');
   const hora = document.getElementById('nf-hora').value;
   if (!hora){ errEl.textContent = 'Poné una hora estimada de salida.'; return; }
+  if (faltaElegirEquipo(['nf-embarcacion','nf-remo','nf-chaleco'])){ errEl.textContent = 'Elegí embarcación, remo y chaleco (o marcá que traés el tuyo).'; return; }
   const embarcacion_id = resolverSeleccion('nf-embarcacion');
   const remo_id = resolverSeleccion('nf-remo');
   const chaleco_id = resolverSeleccion('nf-chaleco');
@@ -1135,16 +1198,15 @@ async function ficharIngreso(){
     errEl.textContent = 'Tu contribución está vencida — solo podés fichar con equipo propio.';
     return;
   }
-  const [hh,mm] = hora.split(':').map(Number);
-  const est = new Date(); est.setHours(hh,mm,0,0);
-  if (est.getTime() < Date.now()) est.setDate(est.getDate()+1);
+  const { est, error: errHora } = calcularHoraEstimada(hora);
+  if (errHora){ errEl.textContent = errHora; return; }
 
   const { error } = await sb.from('fichajes').insert({
     socio_id: session.user.id, es_esporadico: false,
     embarcacion_id, remo_id, chaleco_id,
     hora_estimada_salida: est.toISOString(), marcado_por: 'socio'
   });
-  if (error){ errEl.textContent = 'No se pudo fichar: ' + error.message; return; }
+  if (error){ errEl.textContent = 'No se pudo fichar: ' + traducirError(error.message); return; }
   // El equipo pasa a "en uso" solo: lo hace un trigger en la base (on_fichaje_equipo).
   toast('Ingreso fichado. ¡Buena navegada!');
   await cargarDatos(); renderSocioContent();
@@ -1169,12 +1231,12 @@ async function registrarEsporadico(){
   const hora = document.getElementById('esp-hora').value;
   if (!nombre){ errEl.textContent = 'Falta el nombre.'; return; }
   if (!hora){ errEl.textContent = 'Poné una hora estimada de salida.'; return; }
+  if (faltaElegirEquipo(['esp-embarcacion','esp-remo','esp-chaleco'])){ errEl.textContent = 'Elegí embarcación, remo y chaleco (o marcá que trae el suyo).'; return; }
   const embarcacion_id = resolverSeleccion('esp-embarcacion');
   const remo_id = resolverSeleccion('esp-remo');
   const chaleco_id = resolverSeleccion('esp-chaleco');
-  const [hh,mm] = hora.split(':').map(Number);
-  const est = new Date(); est.setHours(hh,mm,0,0);
-  if (est.getTime() < Date.now()) est.setDate(est.getDate()+1);
+  const { est, error: errHora } = calcularHoraEstimada(hora);
+  if (errHora){ errEl.textContent = errHora; return; }
 
   const { error } = await sb.from('fichajes').insert({
     socio_id: null, es_esporadico: true, nombre_esporadico: nombre, dni_esporadico: dni,
@@ -1190,6 +1252,10 @@ async function registrarEsporadico(){
 }
 
 boot();
+// Al volver a la app, se actualiza enseguida (sin esperar los 20 s).
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && refrescoActual) refrescoActual();
+});
 
 if ('serviceWorker' in navigator){
   window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(()=>{}); });
@@ -1321,7 +1387,7 @@ async function agregarEquipo(){
   const yaExiste = equipo.some(e => e.tipo===tipo && (e.subtipo||null)===subtipo && e.numero===numero);
   if (yaExiste){ errEl.textContent = 'Ya existe un equipo con ese número.'; return; }
   const { error } = await sb.from('equipo').insert({ tipo, subtipo, numero, estado: 'disponible' });
-  if (error){ errEl.textContent = 'No se pudo agregar: ' + error.message; return; }
+  if (error){ errEl.textContent = 'No se pudo agregar: ' + traducirError(error.message); return; }
   closeModal('modal-equipo');
   toast('Equipo agregado.');
   await cargarDatos();
@@ -1350,7 +1416,7 @@ function refrescarSelectSociosCredencial(){
   const sel = document.getElementById('cred-socio-select');
   if (!sel) return;
   sel.innerHTML = '<option value="">Elegí un adherente…</option>' +
-    socios.map(s=>`<option value="${s.id}">${[s.nombre,s.apellido].filter(Boolean).join(' ')||s.dni||'Adherente'}</option>`).join('');
+    socios.map(s=>`<option value="${s.id}">${escaparHtml(nombreAdherente(s))}</option>`).join('');
 }
 
 function renderStaffCredenciales(){
@@ -1363,8 +1429,8 @@ function renderStaffCredenciales(){
     const vencida = c.vencimiento && c.vencimiento < hoy;
     return `
       <div class="board-row" style="grid-template-columns:1.2fr 1.3fr 1fr auto;">
-        <div class="board-name">${nombreSocio || 'Adherente'}</div>
-        <div>${c.nombre}${c.certificado_por ? ' <span class="hint" style="margin:0;">— cert. por '+c.certificado_por+'</span>' : ''}</div>
+        <div class="board-name">${escaparHtml(nombreSocio || 'Adherente')}</div>
+        <div>${escaparHtml(c.nombre)}${c.certificado_por ? ' <span class="hint" style="margin:0;">— cert. por '+escaparHtml(c.certificado_por)+'</span>' : ''}</div>
         <div class="hint" style="margin:0;">${c.fecha}${c.vencimiento ? ' · vence '+c.vencimiento : ''}${vencida ? ' · <b style="color:var(--danger);">vencida</b>' : ''}</div>
         <button class="btn btn-ghost" onclick="borrarCredencial('${c.id}')">Quitar</button>
       </div>`;
@@ -1415,9 +1481,6 @@ async function cargarAnuncios(){
   anuncioLikes = rl.data || [];
   anuncioComentarios = rc.data || [];
 }
-function escaparHtml(s){
-  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
 function tiempoRelativo(iso){
   const d = new Date(iso);
   const seg = Math.floor((Date.now() - d.getTime()) / 1000);
@@ -1464,9 +1527,9 @@ function renderAnunciosSocio(){
           <span>${tiempoRelativo(a.created_at)} · vigente hasta el ${fechaCorta(a.fecha_vigencia_hasta)}</span>
         </div>
       </div>
-      <div class="post-title">${a.titulo}</div>
-      <div class="post-body">${a.cuerpo}</div>
-      ${a.imagen_url ? `<img class="post-img" src="${a.imagen_url}" alt="">` : ''}
+      <div class="post-title">${escaparHtml(a.titulo)}</div>
+      <div class="post-body">${escaparHtml(a.cuerpo)}</div>
+      ${a.imagen_url ? `<img class="post-img" src="${escaparHtml(a.imagen_url)}" alt="">` : ''}
       <div class="post-foot">
         <button class="like-btn ${yaLike ? 'liked' : ''}" onclick="toggleLikeAnuncio('${a.id}')">
           <span class="heart">${yaLike ? '❤️' : '🤍'}</span> Me gusta${cantLikes > 0 ? ` · ${cantLikes}` : ''}
@@ -1504,10 +1567,10 @@ function renderStaffAnuncios(){
   if (anuncios.length === 0){ cont.innerHTML = '<p class="empty">No hay anuncios cargados.</p>'; return; }
   cont.innerHTML = anuncios.map(a => `
     <div class="board-row" style="grid-template-columns:auto 1.6fr 1fr auto;align-items:center;">
-      ${a.imagen_url ? `<img src="${a.imagen_url}" alt="" style="width:44px;height:44px;object-fit:cover;border-radius:8px;">` : '<div style="width:44px;"></div>'}
+      ${a.imagen_url ? `<img src="${escaparHtml(a.imagen_url)}" alt="" style="width:44px;height:44px;object-fit:cover;border-radius:8px;">` : '<div style="width:44px;"></div>'}
       <div>
-        <div class="board-name">${a.titulo}</div>
-        <div class="hint" style="margin:2px 0 0;">${a.cuerpo}</div>
+        <div class="board-name">${escaparHtml(a.titulo)}</div>
+        <div class="hint" style="margin:2px 0 0;">${escaparHtml(a.cuerpo)}</div>
         <div class="hint" style="margin:2px 0 0;">❤️ ${likesDe(a.id).length}</div>
       </div>
       <div class="hint" style="margin:0;">Hasta ${fechaCorta(a.fecha_vigencia_hasta)}</div>
@@ -1525,6 +1588,27 @@ async function toggleLikeAnuncio(anuncioId){
   renderAnunciosSocio();
   if (perfil.rol === 'staff' || perfil.rol === 'admin') renderStaffAnuncios();
 }
+// Achica la foto antes de subirla (máx. 1600 px, JPEG): una foto de celu de
+// 3-5 MB queda en unos 200-400 KB. Si el navegador no puede, sube la original.
+async function achicarImagen(archivo, maxLado = 1600, calidad = 0.82){
+  try{
+    const bmp = await createImageBitmap(archivo);
+    const escala = Math.min(1, maxLado / Math.max(bmp.width, bmp.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(bmp.width * escala);
+    canvas.height = Math.round(bmp.height * escala);
+    canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', calidad));
+    return blob || archivo;
+  } catch(e){
+    return archivo;
+  }
+}
+// De la URL pública de la foto saca la ruta dentro del bucket "anuncios".
+function rutaImagenAnuncio(url){
+  const i = url ? url.indexOf('/anuncios/') : -1;
+  return i < 0 ? null : decodeURIComponent(url.slice(i + '/anuncios/'.length));
+}
 async function agregarAnuncio(){
   const errEl = document.getElementById('an-err');
   const btn = document.getElementById('an-btn-publicar');
@@ -1539,8 +1623,10 @@ async function agregarAnuncio(){
   btn.disabled = true;
   let imagen_url = null;
   if (archivo){
-    const ruta = `${Date.now()}-${archivo.name}`.replace(/[^a-zA-Z0-9.\-_]/g, '_');
-    const { error: errSubida } = await sb.storage.from('anuncios').upload(ruta, archivo);
+    const imagen = await achicarImagen(archivo);
+    const nombre = imagen === archivo ? archivo.name : archivo.name.replace(/\.[^.]*$/, '') + '.jpg';
+    const ruta = `${Date.now()}-${nombre}`.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+    const { error: errSubida } = await sb.storage.from('anuncios').upload(ruta, imagen, { contentType: imagen.type || archivo.type });
     if (errSubida){
       errEl.textContent = 'No se pudo subir la foto: ' + errSubida.message;
       btn.disabled = false;
@@ -1561,8 +1647,11 @@ async function agregarAnuncio(){
   await cargarAnuncios(); renderStaffAnuncios(); renderAnunciosSocio();
 }
 async function borrarAnuncioManual(id){
+  const anuncio = anuncios.find(a => a.id === id);
   const { error } = await sb.from('anuncios').delete().eq('id', id);
   if (error){ toast('No se pudo quitar: ' + error.message); return; }
+  const ruta = rutaImagenAnuncio(anuncio && anuncio.imagen_url);
+  if (ruta) await sb.storage.from('anuncios').remove([ruta]);
   toast('Anuncio quitado.');
   await cargarAnuncios(); renderStaffAnuncios(); renderAnunciosSocio();
 }
@@ -1617,7 +1706,7 @@ function renderBitacora(){
             <label class="field"><span>Entrada</span><input type="datetime-local" id="bit-edit-ingreso-${f.id}" value="${datetimeLocalDeIso(f.hora_ingreso)}"/></label>
             <label class="field"><span>Salida</span><input type="datetime-local" id="bit-edit-salida-${f.id}" value="${datetimeLocalDeIso(f.hora_salida_real)}" ${f.estado==='en_agua' ? 'disabled' : ''}/></label>
           </div>
-          <label class="field" style="margin-top:10px;"><span>Nota</span><input type="text" id="bit-edit-nota-${f.id}" value="${f.nota ? f.nota.replace(/"/g,'&quot;') : ''}"/></label>
+          <label class="field" style="margin-top:10px;"><span>Nota</span><input type="text" id="bit-edit-nota-${f.id}" value="${escaparHtml(f.nota)}"/></label>
           <p class="errtext" id="bit-edit-err-${f.id}"></p>
           <div class="modal-actions" style="margin-top:12px;">
             <button class="btn btn-ghost" onclick="cancelarEdicionBitacora()">Cancelar</button>
@@ -1630,7 +1719,7 @@ function renderBitacora(){
       : fmtHora(f.hora_ingreso) + ' → ' + (f.hora_salida_real ? fmtHora(f.hora_salida_real) : '—');
     return `
       <div class="history-item">
-        <span>${fechaLocal(f.hora_ingreso)} · ${rango}${f.cargado_manual ? ' <span class="hint" style="margin:0;">(cargado a mano)</span>' : ''}${f.nota ? '<br><span class="hint" style="margin:0;">📝 '+f.nota+'</span>' : ''}</span>
+        <span>${fechaLocal(f.hora_ingreso)} · ${rango}${f.cargado_manual ? ' <span class="hint" style="margin:0;">(cargado a mano)</span>' : ''}${f.nota ? '<br><span class="hint" style="margin:0;">📝 '+escaparHtml(f.nota)+'</span>' : ''}</span>
         <button class="btn btn-ghost" ${f.estado==='en_agua' ? 'disabled title="No se puede editar un fichaje activo"' : ''} onclick="editarBitacora('${f.id}')">Editar</button>
       </div>`;
   }).join('');
@@ -1719,11 +1808,13 @@ async function pagarCuota(){
   }
 }
 
+function nombreAdherente(s){ return [s.nombre,s.apellido].filter(Boolean).join(' ') || s.dni || 'Adherente'; }
+
 function refrescarSelectSocios(){
   const sel = document.getElementById('cuota-socio-select');
   if (!sel) return;
   sel.innerHTML = '<option value="">Elegí un adherente…</option>' +
-    socios.map(s=>`<option value="${s.id}">${[s.nombre,s.apellido].filter(Boolean).join(' ')||s.dni||'Adherente'}${s.cuota_vencida?' (vencida)':''}</option>`).join('');
+    socios.map(s=>`<option value="${s.id}">${escaparHtml(nombreAdherente(s))}${s.cuota_vencida?' (vencida)':''}</option>`).join('');
 }
 
 function renderStaffVencidos(){
@@ -1732,7 +1823,7 @@ function renderStaffVencidos(){
   const vencidos = socios.filter(s => s.cuota_vencida);
   if (vencidos.length === 0){ cont.innerHTML = '<p class="hint" style="margin:0;">Todos los adherentes están al día.</p>'; return; }
   cont.innerHTML = `<p class="hint" style="margin:0 0 6px;"><b>${vencidos.length}</b> adherente(s) con la contribución vencida:</p>` +
-    vencidos.map(s => `<div class="history-item"><span>${[s.nombre,s.apellido].filter(Boolean).join(' ') || s.dni || 'Adherente'}</span></div>`).join('');
+    vencidos.map(s => `<div class="history-item"><span>${escaparHtml(nombreAdherente(s))}</span></div>`).join('');
 }
 
 function renderPagosSinAsociar(){
@@ -1743,8 +1834,8 @@ function renderPagosSinAsociar(){
     pagosSinAsociar.map(p => `
       <div class="board-row" style="grid-template-columns:1.4fr 1fr auto;">
         <div>
-          <div class="board-name">${p.nombre_pagador || 'Sin nombre'}</div>
-          <div class="hint" style="margin:2px 0 0;">DNI: ${p.dni_recibido||'—'} · Email: ${p.email_pagador||'—'} · $${p.monto??'—'}</div>
+          <div class="board-name">${escaparHtml(p.nombre_pagador || 'Sin nombre')}</div>
+          <div class="hint" style="margin:2px 0 0;">DNI: ${escaparHtml(p.dni_recibido||'—')} · Email: ${escaparHtml(p.email_pagador||'—')} · $${escaparHtml(p.monto??'—')}</div>
         </div>
         <select id="asociar-${p.id}"></select>
         <button class="btn btn-ghost" onclick="asociarPago('${p.id}')">Asociar</button>
@@ -1752,16 +1843,20 @@ function renderPagosSinAsociar(){
     `).join('');
   pagosSinAsociar.forEach(p => {
     const sel = document.getElementById('asociar-'+p.id);
-    if (sel) sel.innerHTML = '<option value="">Elegí un adherente…</option>' + socios.map(s=>`<option value="${s.id}">${[s.nombre,s.apellido].filter(Boolean).join(' ')||s.dni||'Adherente'}</option>`).join('');
+    if (sel) sel.innerHTML = '<option value="">Elegí un adherente…</option>' + socios.map(s=>`<option value="${s.id}">${escaparHtml(nombreAdherente(s))}</option>`).join('');
   });
 }
 
 async function marcarCuotaManual(){
   const socioId = document.getElementById('cuota-socio-select').value;
   if (!socioId){ toast('Elegí un adherente.'); return; }
-  const periodo = new Date().toISOString().slice(0,7) + '-01';
+  const monto = Number(document.getElementById('cuota-monto').value);
+  if (!(monto > 0)){ toast('Poné el monto que pagó.'); return; }
+  // Mes según la fecha de acá (antes usaba la hora de Londres y el último día
+  // del mes, desde las 21 hs, lo anotaba en el mes siguiente).
+  const periodo = fechaLocal(nowIso()).slice(0,7) + '-01';
   const { error } = await sb.from('cuotas').upsert({
-    socio_id: socioId, periodo, medio: 'manual', fecha_pago: nowIso(), registrado_por: session.user.id
+    socio_id: socioId, periodo, monto, medio: 'manual', fecha_pago: nowIso(), registrado_por: session.user.id
   }, { onConflict: 'socio_id,periodo' });
   if (error){ toast('No se pudo marcar: ' + error.message); return; }
   await sb.from('perfiles').update({ cuota_vencida: false }).eq('id', socioId);
