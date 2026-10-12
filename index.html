@@ -181,6 +181,7 @@
   .errtext{color:var(--danger);font-size:0.82rem;min-height:1.1em;}
   [hidden]{display:none!important;}
   .hora-24{display:flex;align-items:center;gap:6px;}
+  .fecha-hora{display:flex;flex-direction:column;gap:6px;}
   .hora-24 select{width:auto;min-width:76px;}
   .hora-24 span{color:var(--ink-soft);}
   .carnet-qr{width:220px;height:220px;margin:0 auto;border-radius:12px;background:#fff;padding:10px;}
@@ -269,12 +270,25 @@ function nombreDeFichaje(f){
 function horaMasMinutos(mins){ const d = new Date(Date.now()+mins*60000); d.setMinutes(Math.ceil(d.getMinutes()/5)*5, 0, 0); return pad(d.getHours())+':'+pad(d.getMinutes()); }
 // Selector de hora en 24 hs con dos desplegables (hora y minutos de a 5). El
 // campo de hora del navegador, en algunos equipos (Safari/Mac), se veía AM/PM.
-function selectorHoraHtml(id, valor){
-  const [h, m] = valor.split(':');
+// paso = cada cuántos minutos se ofrecen opciones (5 al fichar; 1 en la bitácora,
+// para no perder el minuto exacto de un registro ya guardado).
+function selectorHoraHtml(id, valor, paso = 5, deshabilitado = false){
+  const [h, m] = (valor || '00:00').split(':');
   const opciones = (lista, elegido) => lista.map(x => `<option value="${x}" ${x===elegido?'selected':''}>${x}</option>`).join('');
   const horas = Array.from({ length:24 }, (_, i) => pad(i));
-  const minutos = Array.from({ length:12 }, (_, i) => pad(i*5));
-  return `<span class="hora-24"><select id="${id}-h" aria-label="Hora">${opciones(horas, h)}</select><b>:</b><select id="${id}-m" aria-label="Minutos">${opciones(minutos, m)}</select><span>hs</span></span>`;
+  const minutos = Array.from({ length:60/paso }, (_, i) => pad(i*paso));
+  const dis = deshabilitado ? 'disabled' : '';
+  return `<span class="hora-24"><select id="${id}-h" aria-label="Hora" ${dis}>${opciones(horas, h)}</select><b>:</b><select id="${id}-m" aria-label="Minutos" ${dis}>${opciones(minutos, m)}</select><span>hs</span></span>`;
+}
+// Fecha + hora en 24 hs (para la bitácora). valorLocal y lo que devuelve
+// leerFechaHora tienen la forma "AAAA-MM-DDTHH:MM" en hora local.
+function selectorFechaHoraHtml(id, valorLocal, deshabilitado = false){
+  const [fecha, hora] = (valorLocal || '').split('T');
+  return `<span class="fecha-hora"><input type="date" id="${id}-f" value="${fecha || ''}" ${deshabilitado ? 'disabled' : ''}/>${selectorHoraHtml(id, hora, 1, deshabilitado)}</span>`;
+}
+function leerFechaHora(id){
+  const f = document.getElementById(id+'-f');
+  return f && f.value ? f.value + 'T' + leerHora(id) : '';
 }
 function leerHora(id){
   const h = document.getElementById(id+'-h'), m = document.getElementById(id+'-m');
@@ -1840,8 +1854,8 @@ function renderBitacora(){
       <h2>Cargar ingreso pasado</h2>
       <p class="hint">Para dejar registrado un ingreso que no fichaste en su momento.</p>
       <div class="row2">
-        <label class="field"><span>Entrada</span><input type="datetime-local" id="bit-nuevo-ingreso"/></label>
-        <label class="field"><span>Salida</span><input type="datetime-local" id="bit-nuevo-salida"/></label>
+        <label class="field"><span>Entrada</span>${selectorFechaHoraHtml('bit-nuevo-ingreso', datetimeLocalDeIso(new Date(Date.now() - 2*3600000).toISOString()))}</label>
+        <label class="field"><span>Salida</span>${selectorFechaHoraHtml('bit-nuevo-salida', datetimeLocalDeIso(nowIso()))}</label>
       </div>
       <label class="field" style="margin-top:10px;"><span>Nota (opcional)</span><input type="text" id="bit-nuevo-nota" placeholder="Ej: salida grupal, se olvidó fichar"/></label>
       <p class="errtext" id="bit-nuevo-err"></p>
@@ -1862,8 +1876,8 @@ function renderBitacora(){
       return `
         <div class="card" style="border-color:var(--accent);">
           <div class="row2">
-            <label class="field"><span>Entrada</span><input type="datetime-local" id="bit-edit-ingreso-${f.id}" value="${datetimeLocalDeIso(f.hora_ingreso)}"/></label>
-            <label class="field"><span>Salida</span><input type="datetime-local" id="bit-edit-salida-${f.id}" value="${datetimeLocalDeIso(f.hora_salida_real)}" ${f.estado==='en_agua' ? 'disabled' : ''}/></label>
+            <label class="field"><span>Entrada</span>${selectorFechaHoraHtml('bit-edit-ingreso-'+f.id, datetimeLocalDeIso(f.hora_ingreso))}</label>
+            <label class="field"><span>Salida</span>${selectorFechaHoraHtml('bit-edit-salida-'+f.id, datetimeLocalDeIso(f.hora_salida_real), f.estado==='en_agua')}</label>
           </div>
           <label class="field" style="margin-top:10px;"><span>Nota</span><input type="text" id="bit-edit-nota-${f.id}" value="${escaparHtml(f.nota)}"/></label>
           <p class="errtext" id="bit-edit-err-${f.id}"></p>
@@ -1894,8 +1908,8 @@ function cancelarNuevoRegistroBitacora(){
 }
 async function guardarNuevoRegistroBitacora(){
   const errEl = document.getElementById('bit-nuevo-err');
-  const ingreso = document.getElementById('bit-nuevo-ingreso').value;
-  const salida = document.getElementById('bit-nuevo-salida').value;
+  const ingreso = leerFechaHora('bit-nuevo-ingreso');
+  const salida = leerFechaHora('bit-nuevo-salida');
   const nota = document.getElementById('bit-nuevo-nota').value.trim() || null;
   errEl.textContent = '';
   if (!ingreso || !salida){ errEl.textContent = 'Completá entrada y salida.'; return; }
@@ -1929,9 +1943,9 @@ function cancelarEdicionBitacora(){
 }
 async function guardarBitacora(id){
   const errEl = document.getElementById('bit-edit-err-'+id);
-  const ingreso = document.getElementById('bit-edit-ingreso-'+id).value;
-  const salidaEl = document.getElementById('bit-edit-salida-'+id);
-  const salida = salidaEl.value;
+  const ingreso = leerFechaHora('bit-edit-ingreso-'+id);
+  const salidaEl = document.getElementById('bit-edit-salida-'+id+'-f');
+  const salida = leerFechaHora('bit-edit-salida-'+id);
   const nota = document.getElementById('bit-edit-nota-'+id).value.trim() || null;
   errEl.textContent = '';
   if (!ingreso){ errEl.textContent = 'Falta la fecha/hora de entrada.'; return; }
