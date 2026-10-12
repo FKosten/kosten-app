@@ -257,8 +257,8 @@ const CLIMA_LON = -67.5333;
 const WINDGURU_URL = 'https://www.windguru.cz/51506';
 const WISUKI_TIDE_URL = 'https://wisuki.com/tide/5698/caleta-olivia';
 // Cámara en vivo del Club Náutico, de Estado del Mar. Nos autorizaron (oct 2026) a
-// mostrarla dentro de la app a cambio de mencionarlos: el crédito y el link a su
-// sitio tienen que quedar siempre visibles junto al video.
+// mostrarla dentro de la app a cambio de mencionarlos: tiene que decir que la cámara
+// es de ellos y linkear a la página de la cámara en su sitio, siempre visible.
 const CAMARA_URL = 'https://estadodelmar.com.ar/camaras/caleta-olivia-nautico/';
 const CAMARA_PLAYER_URL = 'https://video5.estadodelmar.com.ar/player/caletaoli';
 let camaraAbierta = false;
@@ -461,7 +461,7 @@ function renderCamara(){
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
         <div>
           <h2 style="margin:0;">📹 El mar en vivo</h2>
-          <p class="hint" style="margin:2px 0 0;">Cámara del Club Náutico · gentileza de ${credito}</p>
+          <p class="hint" style="margin:2px 0 0;">Cámara de ${credito} · Club Náutico</p>
         </div>
         <button class="btn btn-primary" onclick="abrirCamara()">Ver ahora</button>
       </div>`;
@@ -475,7 +475,7 @@ function renderCamara(){
     <div class="camara-marco">
       <iframe src="${CAMARA_PLAYER_URL}" title="Cámara en vivo del Club Náutico — Estado del Mar" allow="autoplay; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
     </div>
-    <p class="hint" style="margin:10px 0 0;">Cámara del Club Náutico · gentileza de ${credito}. Si no carga, <a href="${CAMARA_URL}" target="_blank" rel="noopener" style="color:var(--accent);">abrila en su sitio</a>.</p>`;
+    <p class="hint" style="margin:10px 0 0;">Cámara de ${credito} · Club Náutico. Si no carga, <a href="${CAMARA_URL}" target="_blank" rel="noopener" style="color:var(--accent);">abrila en su sitio</a>.</p>`;
 }
 function abrirCamara(){ camaraAbierta = true; renderCamara(); }
 function cerrarCamara(){ if (!camaraAbierta) return; camaraAbierta = false; renderCamara(); }
