@@ -45,6 +45,8 @@ Sistema de gestión para Fundación Kosten, una organización sin fines de lucro
 - Reglas de negocio: un adherente con la contribución vencida puede fichar, pero solo con equipo propio (lo valida también la base, trigger `on_fichaje_validar`). El estado disponible/en_uso del equipo lo cambia la base sola al fichar ingreso/salida (trigger `on_fichaje_equipo`); el frontend no debe tocarlo. Editar `equipo` es solo para staff/admin. Ver `supabase/2026-10-07-proteger-equipo.sql`. Cada ítem (embarcación/remo/chaleco) puede ser del club o propio, de forma independiente.
 
 ## Edge Functions
+- notificar-aprobacion (Verify JWT DESACTIVADO): push "tu cuenta fue aprobada" al usuario; verifica que el perfil esté activo antes de enviar.
+- limpiar-anuncios (Verify JWT DESACTIVADO): cron diario; borra anuncios vencidos y sus fotos.
 - check-fichajes: la dispara `pg_cron` cada 1 minuto. Si pasó la hora estimada de salida y no se avisó, push de recordatorio al adherente. Si pasaron 15 min o más, push de alerta a staff/admin.
 - notificar-anuncio: push a todos los adherentes al publicarse un anuncio (reusa el mismo motor de Web Push).
 - mp-webhook (Verify JWT DESACTIVADO): recibe cobros de Mercado Pago. Empareja por `external_reference`, luego DNI, luego email. Si no encuentra, va a `pagos_sin_asociar`.
@@ -65,13 +67,14 @@ Fases 1, 2 y 3 funcionalmente completas y probadas en producción por Leo (Mac/S
 3. Probar en producción el alta de esporádico, si no se hizo. (Las horas usan selectores propios en 24 hs: `selectorHoraHtml` al fichar y `selectorFechaHoraHtml` en la bitácora; no volver a `type="time"`/`datetime-local`, que en Safari se ven AM/PM.)
 4. Kiosco (cobro de baño y agua caliente para mate): EN ESPERA por decisión de Leo; falta definir cómo funcionaría.
 5. Configurar SMTP con Gmail de la fundación (pasos ya dados a Leo: verificación en 2 pasos, contraseña de aplicación, Authentication → Emails → SMTP Settings con smtp.gmail.com:587, y subir Rate Limits de emails a 30/h). Leo lo hace más adelante.
-6. Cargar el listado de códigos de alta en `codigos_alta` cuando Leo lo pase (DNI + código, nombre opcional).
+6. (Descartado) Listado de códigos de alta: se reemplazó por la aprobación de cuentas dentro de la app.
 
 ## Decisiones de Leo (8/10/2026)
 - Alta de cuentas: además de mail y contraseña se va a pedir un CÓDIGO, sacado de un listado de socios activos que Leo va a pasar más adelante. Validarlo del lado de la base (no solo en pantalla).
 - Roles (decisión final): admin = solo Leo; staff = comisión + quien trabaje en Kosten en la temporada; adherente = usuario común. Staff y admin pueden hacer lo mismo (Leo no quiere complicarlo). A cambio: toda acción que modifica datos muestra `confirmarAccion()` con el detalle, y la base anota todo en `registro_cambios` (trigger `zz_registro_cambios`), visible en la pestaña Registro del staff.
 - Alertas de seguridad: se quedan solo con push (Leo descartó Telegram: van a ser 5-6 dispositivos de marcas distintas).
-- Códigos de alta: tabla `codigos_alta` (codigo en MAYÚSCULAS, dni, nombre opcional, usado_por/usado_en). Mientras esté vacía, el alta es libre; con filas, `handle_new_user` exige un código válido, lo consume y copia el DNI al perfil. Al cargar el listado: normalizar DNI (solo números) y marcar como usados los códigos de quienes ya tienen cuenta. Ojo: con códigos cargados, crear usuarios a mano desde el dashboard también va a pedir código.
+- Alta de cuentas (decisión final, 12/10/2026): APROBACIÓN DENTRO DE LA APP, no códigos. La cuenta nueva nace `estado='pendiente'`; la persona completa su perfil y ve la pantalla "esperando aprobación" (`renderCuentaNoActiva`), donde puede activar notificaciones. En Staff, arriba de todo, "Cuentas pendientes" (`renderCuentasPendientes` / `resolverCuenta`): Aprobar → 'activo', Rechazar → 'inactivo' (se puede volver a habilitar). Al pasar a activo, el trigger `on_perfil_aprobado` llama a la Edge Function `notificar-aprobacion` (push). La base bloquea todo a cuentas no activas con políticas restrictivas `solo_cuentas_activas` + `cuenta_activa()`; `is_staff_or_admin()` también exige cuenta activa. Toda tabla nueva necesita su política `solo_cuentas_activas`. Quién está al día lo siguen mirando en la planilla de la fundación (60 socios al día a octubre 2026, según capturas que pasó Leo; no se cargó a la base).
+- Códigos de alta: quedaron programados pero APAGADOS (tabla `codigos_alta` vacía; si tuviera filas, `handle_new_user` exigiría un código). No usar salvo que Leo lo pida.
 - Mails: la fundación no tiene dominio propio → SMTP con una cuenta de Gmail y contraseña de aplicación.
 - Backups: sin plan pago; copia manual con `supabase/backup-datos.sql` los días 1 y 15 (recordatorio programado), guardada fuera del repo.
 - Datos de fichajes: `fichajes` = solo los que están en el agua; `misFichajes` = los propios (Mi fichaje y bitácora); el historial del staff pide a la base solo el día elegido (`renderStaffHistory`).

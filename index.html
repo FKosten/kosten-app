@@ -238,6 +238,7 @@ let pollTimer = null;
 let refrescoActual = null;
 let socios = [];
 let pagosSinAsociar = [];
+let cuentasPorAprobar = [];   // pendientes + inactivas (rechazadas o dadas de baja)
 let credencialesPropias = [];
 let credenciales = [];
 let modoRecuperarPassword = false;
@@ -267,7 +268,7 @@ function pad(n){ return String(n).padStart(2,'0'); }
 function fmtHora(iso){ const d = new Date(iso); return pad(d.getHours())+':'+pad(d.getMinutes()); }
 function fechaLocal(iso){ const d = new Date(iso); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
 function nowIso(){ return new Date().toISOString(); }
-function fechaHoraCorta(iso){ return new Date(iso).toLocaleString('es-AR', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' }); }
+function fechaHoraCorta(iso){ return new Date(iso).toLocaleString('es-AR', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false }); }
 function mesTexto(periodo){ return new Date(periodo + 'T00:00:00').toLocaleDateString('es-AR', { month:'long', year:'numeric' }); }
 function pesos(n){ return (n === null || n === undefined || n === '') ? '—' : '$' + Number(n).toLocaleString('es-AR'); }
 function nombreDeFichaje(f){
@@ -528,7 +529,69 @@ async function render(){
     await renderCompletarPerfil();
     return;
   }
+  if (perfil.estado !== 'activo'){
+    renderCuentaNoActiva();
+    return;
+  }
   await renderApp();
+}
+
+// =====================================================================
+// PANTALLA: CUENTA PENDIENTE DE APROBACIÓN (o dada de baja)
+// =====================================================================
+function renderCuentaNoActiva(){
+  if (pollTimer){ clearInterval(pollTimer); pollTimer = null; }
+  const pendiente = perfil.estado === 'pendiente';
+  const pushSoportado = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  let aviso = '';
+  if (pendiente){
+    if (!pushSoportado){
+      aviso = `<p class="hint" style="margin:0;">📱 Para que te avisemos con una notificación, instalá la app en la pantalla de inicio de tu teléfono y abrila desde ahí. Si no, volvé a entrar más tarde.</p>`;
+    } else if (Notification.permission === 'granted'){
+      asegurarSuscripcion().catch(()=>{});
+      aviso = `<p class="hint" style="margin:0;">🔔 Listo: te va a llegar una notificación a este dispositivo cuando te aprueben.</p>`;
+    } else if (Notification.permission === 'denied'){
+      aviso = `<p class="hint" style="margin:0;">🔕 Tenés las notificaciones bloqueadas en este navegador. Volvé a entrar más tarde para ver si ya te aprobaron.</p>`;
+    } else {
+      aviso = `<button class="btn btn-primary btn-big" onclick="activarNotificacionesPendiente()">🔔 Avisarme cuando me aprueben</button>`;
+    }
+  }
+  root().innerHTML = `
+    <div class="top" style="justify-content:center;">
+      <div class="brand">
+        <img class="logo-mark" src="kosten-wordmark.png" alt="Fundación Kosten">
+        <span class="suffix">Adherentes</span>
+      </div>
+    </div>
+    <div class="card center-card">
+      <div class="stack">
+        ${pendiente ? `
+          <h2 style="margin:0;">⏳ Tu cuenta está esperando aprobación</h2>
+          <p class="hint" style="margin:0;">Hola, <b>${escaparHtml(perfil.nombre)}</b>. Ya recibimos tus datos. La comisión de Fundación Kosten tiene que aprobar tu cuenta antes de que puedas usar la app. No hace falta que hagas nada más.</p>
+          ${aviso}
+        ` : `
+          <h2 style="margin:0;">Tu cuenta no está habilitada</h2>
+          <p class="hint" style="margin:0;">Hola, <b>${escaparHtml(perfil.nombre)}</b>. Tu cuenta no está habilitada para usar la app en este momento. Si creés que es un error, hablá con la comisión de Fundación Kosten.</p>
+        `}
+        <button class="btn btn-ghost" onclick="render()">Volver a comprobar</button>
+        <button class="btn-link" onclick="cerrarSesion()">Cerrar sesión</button>
+      </div>
+    </div>`;
+  // Se fija solo cada 20 s (y al volver a la app): cuando la aprueban, entra directo.
+  refrescoActual = async () => {
+    const { data } = await sb.from('perfiles').select('estado').eq('id', session.user.id).maybeSingle();
+    if (data && data.estado !== perfil.estado) render();
+  };
+  pollTimer = setInterval(() => { if (!document.hidden && refrescoActual) refrescoActual(); }, 20000);
+}
+async function activarNotificacionesPendiente(){
+  try{
+    const permiso = await Notification.requestPermission();
+    if (permiso === 'granted') await asegurarSuscripcion();
+  } catch(e){
+    toast('No se pudieron activar: ' + e.message);
+  }
+  if (perfil && perfil.estado !== 'activo') renderCuentaNoActiva();
 }
 
 // =====================================================================
@@ -703,7 +766,7 @@ async function renderCompletarPerfil(){
     </div>
     <div class="card center-card">
       <h2>Completá tu perfil</h2>
-      <p class="hint">Estos datos quedan disponibles para la comisión de Fundación Kosten.</p>
+      <p class="hint">Estos datos quedan disponibles para la comisión de Fundación Kosten. Después de guardarlos, la comisión tiene que aprobar tu cuenta para que puedas usar la app.</p>
       <div class="stack">
         <div class="row2">
           <label class="field"><span>Nombre</span><input type="text" id="cp-nombre" value="${escaparHtml(p.nombre)}"/></label>
@@ -784,14 +847,17 @@ async function refrescarPerfil(){
 }
 
 async function cargarDatosStaffCuotas(){
-  const [{ data: sc, error: e3 }, { data: ps, error: e4 }] = await Promise.all([
-    sb.from('perfiles').select('id,nombre,apellido,dni,rol,cuota_vencida').eq('rol','socio').order('nombre'),
-    sb.from('pagos_sin_asociar').select('*').eq('estado','pendiente').order('created_at', { ascending:false })
+  const [{ data: sc, error: e3 }, { data: ps, error: e4 }, { data: pa, error: e6 }] = await Promise.all([
+    sb.from('perfiles').select('id,nombre,apellido,dni,rol,cuota_vencida').eq('rol','socio').eq('estado','activo').order('nombre'),
+    sb.from('pagos_sin_asociar').select('*').eq('estado','pendiente').order('created_at', { ascending:false }),
+    sb.from('perfiles').select('id,nombre,apellido,dni,telefono,email,contacto_emergencia,fecha_alta,estado,acepta_tyc').neq('estado','activo').order('fecha_alta', { ascending:true })
   ]);
-  if (e3) toast('Error leyendo adherentes: '+e3.message);
+  if (e3 || e6) toast('Error leyendo adherentes: '+(e3 || e6).message);
   if (e4) toast('Error leyendo pagos sin asociar: '+e4.message);
   socios = sc || [];
   pagosSinAsociar = ps || [];
+  cuentasPorAprobar = pa || [];
+  renderCuentasPendientes();
 }
 
 async function renderApp(){
@@ -844,6 +910,7 @@ async function renderApp(){
     </div>
 
     <div class="panel" id="panel-staff">
+      <div id="staff-pendientes"></div>
       <div class="tabs tabs-scroll" id="staff-tabs">
         <button class="tab-btn active" id="stafftab-fichaje" onclick="setStaffTab('fichaje')">Fichaje</button>
         <button class="tab-btn" id="stafftab-cuotas" onclick="setStaffTab('cuotas')">Contribuciones</button>
@@ -2030,6 +2097,53 @@ async function pagarCuota(){
   } catch(e){
     toast('No se pudo generar el pago: ' + e.message);
   }
+}
+
+// Arriba de todo en Staff: quién está esperando que le aprueben la cuenta.
+let verCuentasInactivas = false;
+function renderCuentasPendientes(){
+  const cont = document.getElementById('staff-pendientes');
+  if (!cont) return;
+  // Solo se listan los que ya completaron sus datos y aceptaron los T&C.
+  const pendientes = cuentasPorAprobar.filter(c => c.estado === 'pendiente' && c.nombre && c.acepta_tyc);
+  const inactivas = cuentasPorAprobar.filter(c => c.estado === 'inactivo');
+  const btnTab = document.getElementById('tabbtn-staff');
+  if (btnTab) btnTab.textContent = 'Staff / Comisión' + (pendientes.length ? ` (${pendientes.length})` : '');
+  if (pendientes.length === 0 && inactivas.length === 0){ cont.innerHTML = ''; return; }
+  const fila = (c, botones) => `
+    <div class="board-row" style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;">
+      <div style="flex:1 1 220px;min-width:0;overflow-wrap:anywhere;">
+        <div class="board-name">${escaparHtml(nombreAdherente(c))}</div>
+        <div class="hint" style="margin:2px 0 0;">DNI ${escaparHtml(c.dni || '—')} · Tel. ${escaparHtml(c.telefono || '—')}</div>
+        <div class="hint" style="margin:2px 0 0;">${escaparHtml(c.email || '')}${c.fecha_alta ? ' · se registró el ' + escaparHtml(fechaHoraCorta(c.fecha_alta)) : ''}</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">${botones}</div>
+    </div>`;
+  const htmlPendientes = pendientes.length ? `
+      <h2>Cuentas pendientes de aprobación (${pendientes.length})</h2>
+      <p class="hint">Fijate en la planilla si la persona es adherente y está al día antes de aprobarla.</p>
+      ${pendientes.map(c => fila(c, `<button class="btn btn-primary" onclick="resolverCuenta('${c.id}', true)">Aprobar</button><button class="btn btn-ghost" onclick="resolverCuenta('${c.id}', false)">Rechazar</button>`)).join('')}` : '';
+  const htmlInactivas = inactivas.length ? `
+      <button class="btn-link" style="margin-top:${pendientes.length ? '12px' : '0'};" onclick="verCuentasInactivas = !verCuentasInactivas; renderCuentasPendientes()">${verCuentasInactivas ? 'Ocultar' : 'Ver'} cuentas rechazadas o dadas de baja (${inactivas.length})</button>
+      ${verCuentasInactivas ? inactivas.map(c => fila(c, `<button class="btn btn-ghost" onclick="resolverCuenta('${c.id}', true)">Habilitar</button>`)).join('') : ''}` : '';
+  cont.innerHTML = `<div class="card" style="${pendientes.length ? 'border-color:var(--warn);' : ''}">${htmlPendientes}${htmlInactivas}</div>`;
+}
+async function resolverCuenta(id, aprobar){
+  const c = cuentasPorAprobar.find(x => x.id === id);
+  if (!c) return;
+  const datos = [
+    `Nombre: ${nombreAdherente(c)}`,
+    `DNI: ${c.dni || '—'} · Tel.: ${c.telefono || '—'}`,
+    `Email: ${c.email || '—'}`
+  ];
+  const ok = aprobar
+    ? await confirmarAccion('¿Aprobar esta cuenta?', [...datos, 'Va a poder entrar a la app y fichar, también con equipo del club.', 'Si activó las notificaciones, le llega un aviso.'])
+    : await confirmarAccion('¿Rechazar esta cuenta?', [...datos, 'No va a poder usar la app.', 'Se puede habilitar más adelante desde "cuentas rechazadas o dadas de baja".']);
+  if (!ok) return;
+  const { error } = await sb.from('perfiles').update({ estado: aprobar ? 'activo' : 'inactivo' }).eq('id', id);
+  if (error){ toast('No se pudo guardar: ' + error.message); return; }
+  toast(aprobar ? 'Cuenta aprobada.' : 'Cuenta rechazada.');
+  await cargarDatosStaffCuotas(); refrescarSelectSocios(); refrescarSelectSociosCredencial();
 }
 
 function nombreAdherente(s){ return [s.nombre,s.apellido].filter(Boolean).join(' ') || s.dni || 'Adherente'; }
