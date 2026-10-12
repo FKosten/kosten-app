@@ -633,7 +633,7 @@ function renderAuth(){
         <label class="field" id="su-codigo-wrap" hidden><span>Código de adherente (te lo da la comisión)</span><input type="text" id="su-codigo" autocapitalize="characters" autocomplete="off" spellcheck="false"/></label>
         <p class="errtext" id="su-err"></p>
         <button class="btn btn-primary btn-big" onclick="hacerSignup()">Crear cuenta</button>
-        <p class="hint" style="margin:0;">Después de crear la cuenta te va a llegar un email de confirmación — hay que abrirlo antes de poder ingresar.</p>
+        <p class="hint" style="margin:0;">Usá un email que revises: es el que vas a necesitar si te olvidás la contraseña. Después de crear la cuenta, la comisión tiene que aprobarla.</p>
       </div>
     </div>
   `;
@@ -728,8 +728,12 @@ async function hacerSignup(){
     const { data: valido } = await sb.rpc('validar_codigo_alta', { p_codigo: codigo });
     if (!valido){ errEl.textContent = 'Ese código no es válido o ya fue usado. Si creés que es un error, avisale a la comisión.'; return; }
   }
-  const { error } = await sb.auth.signUp({ email, password, options: { data: { codigo } } });
+  const { data: alta, error } = await sb.auth.signUp({ email, password, options: { data: { codigo } } });
   if (error){ errEl.textContent = traducirError(error.message); return; }
+  // Si en Supabase está apagada la confirmación por mail, la cuenta ya queda
+  // iniciada y la app pasa sola a "Completá tu perfil". Si está prendida, hay
+  // que abrir el mail antes de poder ingresar.
+  if (alta && alta.session){ toast('Cuenta creada. Ahora completá tus datos.'); return; }
   toast('Cuenta creada. Revisá tu email para confirmarla.');
   setAuthTab('login');
 }
@@ -917,6 +921,7 @@ async function renderApp(){
         <button class="tab-btn" id="stafftab-inventario" onclick="setStaffTab('inventario')">Inventario</button>
         <button class="tab-btn" id="stafftab-credenciales" onclick="setStaffTab('credenciales')">Credenciales</button>
         <button class="tab-btn" id="stafftab-anuncios" onclick="setStaffTab('anuncios')">Anuncios</button>
+        <button class="tab-btn" id="stafftab-adherentes" onclick="setStaffTab('adherentes')">Adherentes</button>
         <button class="tab-btn" id="stafftab-registro" onclick="setStaffTab('registro')">Registro</button>
       </div>
 
@@ -1015,6 +1020,15 @@ async function renderApp(){
         <div class="card">
           <h2>Credenciales cargadas</h2>
           <div id="staff-credenciales"></div>
+        </div>
+      </div>
+
+      <div class="panel" id="staffsub-adherentes">
+        <div class="card">
+          <h2>Adherentes registrados</h2>
+          <p class="hint" id="adherentes-resumen">Cargando…</p>
+          <input type="text" id="adherentes-buscar" placeholder="Buscar por nombre, DNI, teléfono o email…" oninput="renderAdherentes()" style="margin-bottom:12px;"/>
+          <div id="staff-adherentes"></div>
         </div>
       </div>
 
@@ -1149,6 +1163,7 @@ async function renderApp(){
       conservarFormulario(document.getElementById('staffsub-cuotas'), () => { refrescarSelectSocios(); renderStaffVencidos(); renderPagosSinAsociar(); });
       await cargarDatosStaffCredenciales(); renderStaffCredenciales();
       renderStaffAnuncios();
+      if (staffTabActual === 'adherentes') await cargarAdherentes();
     }
   };
   // Con la app en segundo plano no se consulta nada (ahorra batería y datos).
@@ -1165,11 +1180,12 @@ function setMainTab(which){
 let staffTabActual = 'fichaje';
 function setStaffTab(which){
   staffTabActual = which;
-  ['fichaje','cuotas','inventario','credenciales','anuncios','registro'].forEach(w => {
+  ['fichaje','cuotas','inventario','credenciales','anuncios','adherentes','registro'].forEach(w => {
     document.getElementById('staffsub-'+w).classList.toggle('active', w===which);
     document.getElementById('stafftab-'+w).classList.toggle('active', w===which);
   });
   if (which === 'registro') cargarRegistro();
+  if (which === 'adherentes') cargarAdherentes();
 }
 let socioTabActual = 'fichaje';
 function setSocioTab(which){
@@ -2099,6 +2115,65 @@ async function pagarCuota(){
   }
 }
 
+// Pestaña Adherentes: todas las cuentas registradas, con sus datos y su estado.
+let adherentesTodos = [];
+async function cargarAdherentes(){
+  const { data, error } = await sb.from('perfiles')
+    .select('id,nombre,apellido,dni,telefono,email,contacto_emergencia,fecha_alta,rol,estado,cuota_vencida,numero_socio,acepta_tyc')
+    .order('apellido', { ascending:true });
+  if (error){ toast('Error leyendo adherentes: ' + error.message); return; }
+  adherentesTodos = data || [];
+  renderAdherentes();
+}
+function renderAdherentes(){
+  const cont = document.getElementById('staff-adherentes');
+  if (!cont) return;
+  const cuenta = e => adherentesTodos.filter(a => a.estado === e).length;
+  document.getElementById('adherentes-resumen').textContent =
+    `${adherentesTodos.length} cuentas · ${cuenta('activo')} activas · ${cuenta('pendiente')} pendientes · ${cuenta('inactivo')} dadas de baja o rechazadas`;
+  const q = (document.getElementById('adherentes-buscar').value || '').trim().toLowerCase();
+  const lista = !q ? adherentesTodos : adherentesTodos.filter(a =>
+    [a.nombre, a.apellido, a.dni, a.telefono, a.email, a.numero_socio].some(v => String(v ?? '').toLowerCase().includes(q)));
+  if (lista.length === 0){ cont.innerHTML = '<p class="empty">No hay adherentes que coincidan.</p>'; return; }
+  const chip = (texto, clase) => `<span class="tag-esp" style="margin-left:6px;${clase}">${texto}</span>`;
+  cont.innerHTML = lista.map(a => {
+    const completo = a.nombre && a.acepta_tyc;
+    const estado = a.estado === 'activo' ? '' : a.estado === 'pendiente'
+      ? chip(completo ? 'pendiente' : 'no completó sus datos', 'color:var(--warn);border-color:var(--warn);')
+      : chip('de baja', 'color:var(--danger);border-color:var(--danger);');
+    const rol = a.rol === 'socio' ? '' : chip(a.rol, '');
+    const vencida = a.cuota_vencida ? chip('contribución vencida', 'color:var(--warn);border-color:var(--warn);') : '';
+    const esYo = a.id === session.user.id;
+    const boton = a.estado === 'activo'
+      ? (esYo ? '' : `<button class="btn btn-ghost" onclick="cambiarEstadoAdherente('${a.id}', 'inactivo')">Dar de baja</button>`)
+      : (completo || a.estado === 'inactivo' ? `<button class="btn btn-primary" onclick="cambiarEstadoAdherente('${a.id}', 'activo')">${a.estado === 'pendiente' ? 'Aprobar' : 'Habilitar'}</button>` : '');
+    return `
+      <div class="board-row" style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;">
+        <div style="flex:1 1 220px;min-width:0;overflow-wrap:anywhere;">
+          <div class="board-name">${escaparHtml(nombreAdherente(a))}${estado}${rol}${vencida}</div>
+          <div class="hint" style="margin:2px 0 0;">N.° ${escaparHtml(a.numero_socio ?? '—')} · DNI ${escaparHtml(a.dni || '—')} · Tel. ${a.telefono ? `<a href="tel:${escaparHtml(a.telefono)}" style="color:var(--accent);">${escaparHtml(a.telefono)}</a>` : '—'}</div>
+          <div class="hint" style="margin:2px 0 0;">${escaparHtml(a.email || '')}</div>
+          <div class="hint" style="margin:2px 0 0;">Emergencia: ${escaparHtml(a.contacto_emergencia || '—')}</div>
+        </div>
+        ${boton}
+      </div>`;
+  }).join('');
+}
+async function cambiarEstadoAdherente(id, estado){
+  const a = adherentesTodos.find(x => x.id === id);
+  if (!a) return;
+  const datos = [`Nombre: ${nombreAdherente(a)}`, `DNI: ${a.dni || '—'} · Tel.: ${a.telefono || '—'}`];
+  const ok = estado === 'activo'
+    ? await confirmarAccion(a.estado === 'pendiente' ? '¿Aprobar esta cuenta?' : '¿Habilitar esta cuenta?', [...datos, 'Va a poder entrar a la app y fichar, también con equipo del club.', 'Si activó las notificaciones, le llega un aviso.'])
+    : await confirmarAccion('¿Dar de baja esta cuenta?', [...datos, 'No va a poder entrar a la app ni fichar. Sus datos y su historial se conservan.', 'Se puede volver a habilitar cuando quieran.']);
+  if (!ok) return;
+  const { error } = await sb.from('perfiles').update({ estado }).eq('id', id);
+  if (error){ toast('No se pudo guardar: ' + error.message); return; }
+  toast(estado === 'activo' ? 'Cuenta habilitada.' : 'Cuenta dada de baja.');
+  await cargarAdherentes();
+  await cargarDatosStaffCuotas(); refrescarSelectSocios(); refrescarSelectSociosCredencial();
+}
+
 // Arriba de todo en Staff: quién está esperando que le aprueben la cuenta.
 let verCuentasInactivas = false;
 function renderCuentasPendientes(){
@@ -2144,6 +2219,7 @@ async function resolverCuenta(id, aprobar){
   if (error){ toast('No se pudo guardar: ' + error.message); return; }
   toast(aprobar ? 'Cuenta aprobada.' : 'Cuenta rechazada.');
   await cargarDatosStaffCuotas(); refrescarSelectSocios(); refrescarSelectSociosCredencial();
+  if (staffTabActual === 'adherentes') await cargarAdherentes();
 }
 
 function nombreAdherente(s){ return [s.nombre,s.apellido].filter(Boolean).join(' ') || s.dni || 'Adherente'; }

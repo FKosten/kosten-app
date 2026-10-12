@@ -55,7 +55,7 @@ Sistema de gestión para Fundación Kosten, una organización sin fines de lucro
 ## Pantallas del frontend
 - Login/registro/olvidé contraseña → completar perfil con T&C obligatorios.
 - Adherente: pestañas Fichaje (principal, con tarjeta de clima y alerta si el viento supera 40 km/h, `UMBRAL_VIENTO_ALERTA_KMH`), Bitácora, Anuncios, Mi contribución (hoy placeholder "¡Próximamente!"), Mis certificados. Mi carnet es un modal desde el header.
-- Staff/Comisión, 5 pestañas: Fichaje (resumen de equipo en uso, fichajes en vivo, esporádicos, historial por fecha), Contribuciones, Inventario, Credenciales, Anuncios.
+- Staff/Comisión, 7 pestañas: Fichaje (resumen de equipo en uso, fichajes en vivo, esporádicos, historial por fecha), Contribuciones, Inventario, Credenciales, Anuncios, Adherentes (todas las cuentas con sus datos, buscador, aprobar / dar de baja / habilitar) y Registro (cambios). Arriba de las pestañas, la lista de cuentas pendientes de aprobación.
 - Sin Realtime todavía: la pantalla se refresca sola cada 20 segundos.
 
 ## Estado
@@ -66,7 +66,7 @@ Fases 1, 2 y 3 funcionalmente completas y probadas en producción por Leo (Mac/S
 2. Probar de punta a punta Anuncios: publicar → aparece en staff → aparece en el adherente → llega el push.
 3. Probar en producción el alta de esporádico, si no se hizo. (Las horas usan selectores propios en 24 hs: `selectorHoraHtml` al fichar y `selectorFechaHoraHtml` en la bitácora; no volver a `type="time"`/`datetime-local`, que en Safari se ven AM/PM.)
 4. Kiosco (cobro de baño y agua caliente para mate): EN ESPERA por decisión de Leo; falta definir cómo funcionaría.
-5. Configurar SMTP con Gmail de la fundación (pasos ya dados a Leo: verificación en 2 pasos, contraseña de aplicación, Authentication → Emails → SMTP Settings con smtp.gmail.com:587, y subir Rate Limits de emails a 30/h). Leo lo hace más adelante.
+5. Mails: Leo prefiere no configurar SMTP por ahora. Alternativa propuesta: apagar "Confirm email" en Supabase (Authentication → Sign In / Providers → Email), ya que la aprobación del staff es el filtro; el registro (`hacerSignup`) ya funciona con o sin confirmación. Sin SMTP propio siguen limitados los mails de recuperar contraseña. Si más adelante se quiere: configurar SMTP con Gmail de la fundación (pasos ya dados a Leo: verificación en 2 pasos, contraseña de aplicación, Authentication → Emails → SMTP Settings con smtp.gmail.com:587, y subir Rate Limits de emails a 30/h). Leo lo hace más adelante.
 6. (Descartado) Listado de códigos de alta: se reemplazó por la aprobación de cuentas dentro de la app.
 
 ## Decisiones de Leo (8/10/2026)
