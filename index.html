@@ -184,6 +184,8 @@
   .fecha-hora{display:flex;flex-direction:column;gap:6px;}
   .hora-24 select{width:auto;min-width:76px;}
   .hora-24 span{color:var(--ink-soft);}
+  .camara-marco{position:relative;width:100%;aspect-ratio:16/9;background:#000;border-radius:12px;overflow:hidden;}
+  .camara-marco iframe{position:absolute;inset:0;width:100%;height:100%;border:0;}
   .carnet-qr{width:220px;height:220px;margin:0 auto;border-radius:12px;background:#fff;padding:10px;}
   .carnet-qr svg{display:block;width:100%;height:100%;}
 </style>
@@ -254,9 +256,12 @@ const CLIMA_LAT = -46.4333;
 const CLIMA_LON = -67.5333;
 const WINDGURU_URL = 'https://www.windguru.cz/51506';
 const WISUKI_TIDE_URL = 'https://wisuki.com/tide/5698/caleta-olivia';
-// Cámara en vivo del Club Náutico (servicio de Estado del Mar). Se abre en su sitio:
-// para mostrar el video dentro de la app haría falta su autorización.
+// Cámara en vivo del Club Náutico, de Estado del Mar. Nos autorizaron (oct 2026) a
+// mostrarla dentro de la app a cambio de mencionarlos: el crédito y el link a su
+// sitio tienen que quedar siempre visibles junto al video.
 const CAMARA_URL = 'https://estadodelmar.com.ar/camaras/caleta-olivia-nautico/';
+const CAMARA_PLAYER_URL = 'https://video5.estadodelmar.com.ar/player/caletaoli';
+let camaraAbierta = false;
 
 function pad(n){ return String(n).padStart(2,'0'); }
 function fmtHora(iso){ const d = new Date(iso); return pad(d.getHours())+':'+pad(d.getMinutes()); }
@@ -445,18 +450,46 @@ function alertaVientoHtml(){
   if (Math.round(ahora.viento) < UMBRAL_VIENTO_ALERTA_KMH) return '';
   return `<div class="message msg-danger" style="margin:0 0 12px;">⚠️ Viento fuerte ahora mismo (${Math.round(ahora.viento)} km/h ${direccionViento(ahora.dir)}) — evaluá bien las condiciones antes de salir.</div>`;
 }
+// El video se carga recién cuando alguien toca "Ver": así no gasta datos del
+// celu ni carga el servidor de Estado del Mar si nadie lo está mirando.
+function renderCamara(){
+  const cont = document.getElementById('camara-card');
+  if (!cont) return;
+  const credito = `<a href="${CAMARA_URL}" target="_blank" rel="noopener" style="color:var(--accent);font-weight:700;">Estado del Mar</a>`;
+  if (!camaraAbierta){
+    cont.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+        <div>
+          <h2 style="margin:0;">📹 El mar en vivo</h2>
+          <p class="hint" style="margin:2px 0 0;">Cámara del Club Náutico · gentileza de ${credito}</p>
+        </div>
+        <button class="btn btn-primary" onclick="abrirCamara()">Ver ahora</button>
+      </div>`;
+    return;
+  }
+  cont.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;">
+      <h2 style="margin:0;">📹 El mar en vivo</h2>
+      <button class="btn btn-ghost" style="padding:8px 12px;" onclick="cerrarCamara()">Cerrar</button>
+    </div>
+    <div class="camara-marco">
+      <iframe src="${CAMARA_PLAYER_URL}" title="Cámara en vivo del Club Náutico — Estado del Mar" allow="autoplay; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+    </div>
+    <p class="hint" style="margin:10px 0 0;">Cámara del Club Náutico · gentileza de ${credito}. Si no carga, <a href="${CAMARA_URL}" target="_blank" rel="noopener" style="color:var(--accent);">abrila en su sitio</a>.</p>`;
+}
+function abrirCamara(){ camaraAbierta = true; renderCamara(); }
+function cerrarCamara(){ if (!camaraAbierta) return; camaraAbierta = false; renderCamara(); }
 function renderClimaCard(){
   const contenido = (climaData && climaData.horas && climaData.horas.length > 0)
     ? `<div style="display:flex;gap:8px;flex-wrap:wrap;">${climaData.horas.map(franjaClimaHtml).join('')}</div>`
     : 'Cargando clima…';
   return `
     <div class="card">
-      <h2 style="margin-bottom:2px;">Clima, mareas y cámara</h2>
+      <h2 style="margin-bottom:2px;">Clima y mareas</h2>
       <p class="hint" style="margin:0 0 12px;">Próximas horas — viento en km/h, flecha = hacia dónde sopla.</p>
       <div id="clima-alerta">${alertaVientoHtml()}</div>
       <div id="clima-resumen">${contenido}</div>
-      <a class="btn btn-primary" style="text-decoration:none;width:100%;margin-top:12px;" href="${CAMARA_URL}" target="_blank" rel="noopener">📹 Ver el mar en vivo (cámara del Náutico) →</a>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;">
         <a class="btn btn-ghost" style="text-decoration:none;" href="${WINDGURU_URL}" target="_blank" rel="noopener">Pronóstico completo en Windguru →</a>
         <a class="btn btn-ghost" style="text-decoration:none;" href="${WISUKI_TIDE_URL}" target="_blank" rel="noopener">Tabla de mareas en Wisuki →</a>
       </div>
@@ -793,6 +826,7 @@ async function renderApp(){
       </div>
 
       <div class="panel active" id="sociosub-fichaje">
+        <div class="card" id="camara-card" style="padding:14px 16px;"></div>
         <div id="socio-content"></div>
       </div>
       <div class="panel" id="sociosub-bitacora">
@@ -1018,6 +1052,7 @@ async function renderApp(){
       </div>
     </div>
   `;
+  camaraAbierta = false; renderCamara();
   renderSocioContent();
   renderCertificadosTab();
   await cargarAnuncios();
@@ -1054,6 +1089,7 @@ async function renderApp(){
 }
 
 function setMainTab(which){
+  if (which !== 'socio') cerrarCamara();
   document.getElementById('panel-socio').classList.toggle('active', which==='socio');
   document.getElementById('panel-staff').classList.toggle('active', which==='staff');
   document.getElementById('tabbtn-socio').classList.toggle('active', which==='socio');
@@ -1071,6 +1107,7 @@ function setStaffTab(which){
 let socioTabActual = 'fichaje';
 function setSocioTab(which){
   socioTabActual = which;
+  if (which !== 'fichaje') cerrarCamara();
   ['fichaje','bitacora','anuncios','cuota','certificados'].forEach(w => {
     document.getElementById('sociosub-'+w).classList.toggle('active', w===which);
     document.getElementById('sociotab-'+w).classList.toggle('active', w===which);
@@ -1402,6 +1439,7 @@ async function registrarEsporadico(){
 boot();
 // Al volver a la app, se actualiza enseguida (sin esperar los 20 s).
 document.addEventListener('visibilitychange', () => {
+  if (document.hidden) cerrarCamara();  // no seguir bajando video con la app en segundo plano
   if (!document.hidden && refrescoActual) refrescoActual();
 });
 
