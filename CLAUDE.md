@@ -79,7 +79,8 @@ Fases 1, 2 y 3 funcionalmente completas y probadas en producción por Leo (Mac/S
 
 ## Ideas a futuro (sin fecha)
 - "Quién está en el club" (fin social: "veo quién está y decido si voy"): botón manual "Estoy en el club" que se apaga solo a las pocas horas, con una pestaña visible para los adherentes. Se descartó el GPS automático porque la ubicación en segundo plano no anda bien en PWA, sobre todo en iPhone. Con Capacitor se podría automatizar.
-- Cámara EZVIZ en vivo para que los adherentes vean el mar. EZVIZ usa su propio Open Platform/SDK con tokens temporales (pedirlos desde una Edge Function, nunca exponer claves en el frontend); hay que revisar los límites del plan. Alternativa: RTSP local + relay a HLS, que suma infraestructura 24/7.
+- Cámara del mar: la tarjeta de clima tiene un botón que abre la cámara pública del Club Náutico en estadodelmar.com.ar (`CAMARA_URL`). Su reproductor técnicamente permite incrustarse, pero es un servicio de ellos financiado con publicidad y suscripciones: NO incrustar el video dentro de la app sin su autorización (Leo puede pedirla por su página de contacto).
+- Cámara EZVIZ propia en vivo para que los adherentes vean el mar. EZVIZ usa su propio Open Platform/SDK con tokens temporales (pedirlos desde una Edge Function, nunca exponer claves en el frontend); hay que revisar los límites del plan. Alternativa: RTSP local + relay a HLS, que suma infraestructura 24/7.
 - Avisos de vencimiento de credenciales con push.
 - Migrar a app nativa con Capacitor.
 - T&C: hoy rige un borrador de un párrafo (versión "borrador-1" en `terminos_condiciones`, cargado 3 veces igual). Hay un borrador completo para el abogado en https://claude.ai/code/artifact/e53dff0a-d6c3-46d6-a685-0fba1c46d33e. Cuando esté aprobado, cargarlo como versión nueva (los adherentes deberían volver a aceptarlo: hoy la app no lo pide si ya aceptaron una versión anterior).

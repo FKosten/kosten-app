@@ -254,6 +254,9 @@ const CLIMA_LAT = -46.4333;
 const CLIMA_LON = -67.5333;
 const WINDGURU_URL = 'https://www.windguru.cz/51506';
 const WISUKI_TIDE_URL = 'https://wisuki.com/tide/5698/caleta-olivia';
+// Cámara en vivo del Club Náutico (servicio de Estado del Mar). Se abre en su sitio:
+// para mostrar el video dentro de la app haría falta su autorización.
+const CAMARA_URL = 'https://estadodelmar.com.ar/camaras/caleta-olivia-nautico/';
 
 function pad(n){ return String(n).padStart(2,'0'); }
 function fmtHora(iso){ const d = new Date(iso); return pad(d.getHours())+':'+pad(d.getMinutes()); }
@@ -448,11 +451,12 @@ function renderClimaCard(){
     : 'Cargando clima…';
   return `
     <div class="card">
-      <h2 style="margin-bottom:2px;">Clima y mareas</h2>
+      <h2 style="margin-bottom:2px;">Clima, mareas y cámara</h2>
       <p class="hint" style="margin:0 0 12px;">Próximas horas — viento en km/h, flecha = hacia dónde sopla.</p>
       <div id="clima-alerta">${alertaVientoHtml()}</div>
       <div id="clima-resumen">${contenido}</div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;">
+      <a class="btn btn-primary" style="text-decoration:none;width:100%;margin-top:12px;" href="${CAMARA_URL}" target="_blank" rel="noopener">📹 Ver el mar en vivo (cámara del Náutico) →</a>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;">
         <a class="btn btn-ghost" style="text-decoration:none;" href="${WINDGURU_URL}" target="_blank" rel="noopener">Pronóstico completo en Windguru →</a>
         <a class="btn btn-ghost" style="text-decoration:none;" href="${WISUKI_TIDE_URL}" target="_blank" rel="noopener">Tabla de mareas en Wisuki →</a>
       </div>
