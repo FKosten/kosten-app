@@ -628,7 +628,8 @@ function renderAuth(){
       </div>
 
       <div id="auth-signup" class="stack" hidden>
-        <label class="field"><span>Email</span><input type="email" id="su-email"/></label>
+        <label class="field"><span>Email</span><input type="email" id="su-email" autocomplete="email"/></label>
+        <label class="field"><span>Repetí tu email</span><input type="email" id="su-email2" autocomplete="off" onpaste="return false" ondrop="return false"/></label>
         <label class="field"><span>Contraseña (mínimo 6 caracteres)</span><input type="password" id="su-pass"/></label>
         <label class="field" id="su-codigo-wrap" hidden><span>Código de adherente (te lo da la comisión)</span><input type="text" id="su-codigo" autocapitalize="characters" autocomplete="off" spellcheck="false"/></label>
         <p class="errtext" id="su-err"></p>
@@ -721,6 +722,10 @@ async function hacerSignup(){
   const errEl = document.getElementById('su-err');
   errEl.textContent = '';
   if (!email || !password){ errEl.textContent = 'Completá email y contraseña.'; return; }
+  // Se pide dos veces porque, sin la confirmación por mail, un error de tipeo
+  // no se nota hasta que la persona necesita recuperar la contraseña.
+  const email2 = document.getElementById('su-email2').value.trim();
+  if (email.toLowerCase() !== email2.toLowerCase()){ errEl.textContent = 'Los dos emails no coinciden. Revisalos.'; return; }
   if (password.length < 6){ errEl.textContent = 'La contraseña necesita al menos 6 caracteres.'; return; }
   const codigo = (document.getElementById('su-codigo').value || '').replace(/\s/g, '').toUpperCase();
   if (altaRequiereCodigo){
