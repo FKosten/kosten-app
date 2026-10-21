@@ -268,6 +268,18 @@ function pad(n){ return String(n).padStart(2,'0'); }
 function fmtHora(iso){ const d = new Date(iso); return pad(d.getHours())+':'+pad(d.getMinutes()); }
 function fechaLocal(iso){ const d = new Date(iso); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
 function nowIso(){ return new Date().toISOString(); }
+// Datos obligatorios del perfil. Devuelve el texto del error, o '' si está todo bien.
+function cantidadDigitos(s){ return (String(s || '').match(/\d/g) || []).length; }
+function validarContacto(telefono, contacto){
+  if (!telefono) return 'Completá tu teléfono.';
+  if (cantidadDigitos(telefono) < 8) return 'Revisá tu teléfono: poné el número completo, con característica (ej. 297 4123456).';
+  if (!contacto) return 'Completá el contacto de emergencia: nombre y teléfono de alguien a quien avisar.';
+  if (!/[a-záéíóúñ]/i.test(contacto) || cantidadDigitos(contacto) < 8) return 'El contacto de emergencia tiene que tener nombre y teléfono completo (ej. Ana Pérez 297 4123456).';
+  return '';
+}
+function perfilCompleto(p){
+  return !!(p && p.nombre && p.apellido && p.dni && p.telefono && p.contacto_emergencia && p.acepta_tyc);
+}
 function fechaHoraCorta(iso){ return new Date(iso).toLocaleString('es-AR', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false }); }
 function mesTexto(periodo){ return new Date(periodo + 'T00:00:00').toLocaleDateString('es-AR', { month:'long', year:'numeric' }); }
 function pesos(n){ return (n === null || n === undefined || n === '') ? '—' : '$' + Number(n).toLocaleString('es-AR'); }
@@ -532,7 +544,7 @@ async function render(){
   const { data: p, error } = await sb.from('perfiles').select('*').eq('id', session.user.id).maybeSingle();
   if (error){ toast('Error cargando tu perfil: ' + error.message); }
   perfil = p;
-  if (!perfil || !perfil.nombre || !perfil.acepta_tyc){
+  if (!perfilCompleto(perfil)){
     await renderCompletarPerfil();
     return;
   }
@@ -782,7 +794,7 @@ async function renderCompletarPerfil(){
     </div>
     <div class="card center-card">
       <h2>Completá tu perfil</h2>
-      <p class="hint">Estos datos quedan disponibles para la comisión de Fundación Kosten. Después de guardarlos, la comisión tiene que aprobar tu cuenta para que puedas usar la app.</p>
+      <p class="hint">Todos los datos son obligatorios. Quedan disponibles para la comisión de Fundación Kosten. Después de guardarlos, la comisión tiene que aprobar tu cuenta para que puedas usar la app.</p>
       <div class="stack">
         <div class="row2">
           <label class="field"><span>Nombre</span><input type="text" id="cp-nombre" value="${escaparHtml(p.nombre)}"/></label>
@@ -790,9 +802,9 @@ async function renderCompletarPerfil(){
         </div>
         <div class="row2">
           <label class="field"><span>DNI</span><input type="text" id="cp-dni" value="${escaparHtml(p.dni)}" ${p.dni ? 'readonly title="Viene del listado de socios; si está mal, avisale a la comisión."' : ''}/></label>
-          <label class="field"><span>Teléfono</span><input type="tel" id="cp-telefono" value="${escaparHtml(p.telefono)}"/></label>
+          <label class="field"><span>Teléfono</span><input type="tel" id="cp-telefono" placeholder="Ej: 297 4123456" value="${escaparHtml(p.telefono)}"/></label>
         </div>
-        <label class="field"><span>Contacto de emergencia</span><input type="text" id="cp-emergencia" placeholder="Nombre y teléfono" value="${escaparHtml(p.contacto_emergencia)}"/></label>
+        <label class="field"><span>Contacto de emergencia</span><input type="text" id="cp-emergencia" placeholder="Ej: Ana Pérez (mamá) 297 4123456" value="${escaparHtml(p.contacto_emergencia)}"/></label>
 
         <div>
           <label class="field"><span>Términos y condiciones</span></label>
@@ -819,6 +831,8 @@ async function guardarPerfil(){
   const errEl = document.getElementById('cp-err');
   if (!nombre || !apellido || !dni){ errEl.textContent = 'Completá nombre, apellido y DNI.'; return; }
   if (dni.length < 6){ errEl.textContent = 'Revisá el DNI: tiene que tener al menos 6 números.'; return; }
+  const errContacto = validarContacto(telefono, contacto_emergencia);
+  if (errContacto){ errEl.textContent = errContacto; return; }
   if (!aceptaTyc){ errEl.textContent = 'Falta aceptar los términos y condiciones.'; return; }
   const payload = { nombre, apellido, dni, telefono, contacto_emergencia, acepta_tyc: true };
   if (!perfil.acepta_tyc){
@@ -1221,6 +1235,8 @@ async function guardarCarnet(){
   const telefono = document.getElementById('carnet-telefono').value.trim();
   const contacto_emergencia = document.getElementById('carnet-contacto-emergencia').value.trim();
   errEl.textContent = '';
+  const errContacto = validarContacto(telefono, contacto_emergencia);
+  if (errContacto){ errEl.textContent = errContacto; return; }
   const cambios = [];
   if (telefono !== (perfil.telefono || '')) cambios.push(`Teléfono: ${perfil.telefono || '(vacío)'} → ${telefono || '(vacío)'}`);
   if (contacto_emergencia !== (perfil.contacto_emergencia || '')) cambios.push(`Contacto de emergencia: ${perfil.contacto_emergencia || '(vacío)'} → ${contacto_emergencia || '(vacío)'}`);
@@ -2149,7 +2165,7 @@ function renderAdherentes(){
   if (lista.length === 0){ cont.innerHTML = '<p class="empty">No hay adherentes que coincidan.</p>'; return; }
   const chip = (texto, clase) => `<span class="tag-esp" style="margin-left:6px;${clase}">${texto}</span>`;
   cont.innerHTML = lista.map(a => {
-    const completo = a.nombre && a.acepta_tyc;
+    const completo = perfilCompleto(a);
     const estado = a.estado === 'activo' ? '' : a.estado === 'pendiente'
       ? chip(completo ? 'pendiente' : 'no completó sus datos', 'color:var(--warn);border-color:var(--warn);')
       : chip('de baja', 'color:var(--danger);border-color:var(--danger);');
@@ -2221,7 +2237,7 @@ function renderCuentasPendientes(){
   const cont = document.getElementById('staff-pendientes');
   if (!cont) return;
   // Solo se listan los que ya completaron sus datos y aceptaron los T&C.
-  const pendientes = cuentasPorAprobar.filter(c => c.estado === 'pendiente' && c.nombre && c.acepta_tyc);
+  const pendientes = cuentasPorAprobar.filter(c => c.estado === 'pendiente' && perfilCompleto(c));
   const inactivas = esAdmin() ? cuentasPorAprobar.filter(c => c.estado === 'inactivo') : [];  // volver a habilitar: solo admin
   const btnTab = document.getElementById('tabbtn-staff');
   if (btnTab) btnTab.textContent = 'Staff / Comisión' + (pendientes.length ? ` (${pendientes.length})` : '');
