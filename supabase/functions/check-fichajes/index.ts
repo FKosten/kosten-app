@@ -130,7 +130,8 @@ async function enviarPushAUsuario(supabase: any, userId: string, title: string, 
 }
 
 async function enviarPushAStaff(supabase: any, title: string, body: string) {
-  const { data: staff } = await supabase.from("perfiles").select("id").in("rol", ["staff", "admin"]);
+  // Equipo activo: guardia de temporada, comisión y admin.
+  const { data: staff } = await supabase.from("perfiles").select("id").in("rol", ["guardia", "staff", "admin"]).eq("estado", "activo");
   const ids = (staff ?? []).map((s: any) => s.id);
   if (ids.length === 0) return;
   const { data: subs } = await supabase.from("push_subscriptions").select("*").in("user_id", ids);

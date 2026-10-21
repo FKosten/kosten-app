@@ -314,6 +314,13 @@ function toast(msg){
   clearTimeout(t._h); t._h = setTimeout(()=>t.classList.remove('show'), 3200);
 }
 function root(){ return document.getElementById('app-boot'); }
+// Roles (nombres internos de la base): socio = Adherente · guardia = quien trabaja
+// en la temporada · staff = Comisión · admin = Leo. La base es la que controla de
+// verdad cada permiso; estas funciones solo deciden qué se muestra.
+const NOMBRE_ROL = { socio:'Adherente', guardia:'Guardia', staff:'Comisión', admin:'Admin' };
+function esEquipo(){ return !!perfil && ['guardia','staff','admin'].includes(perfil.rol); }
+function esComision(){ return !!perfil && ['staff','admin'].includes(perfil.rol); }
+function esAdmin(){ return !!perfil && perfil.rol === 'admin'; }
 // QR del carnet, generado en el propio teléfono (anda sin internet).
 function qrSvg(texto){
   try{
@@ -871,7 +878,7 @@ async function cargarDatosStaffCuotas(){
 
 async function renderApp(){
   await cargarDatos();
-  const esStaff = perfil.rol === 'staff' || perfil.rol === 'admin';
+  const esStaff = esEquipo();
   root().innerHTML = `
     <div class="top">
       <div class="brand">
@@ -922,7 +929,7 @@ async function renderApp(){
       <div id="staff-pendientes"></div>
       <div class="tabs tabs-scroll" id="staff-tabs">
         <button class="tab-btn active" id="stafftab-fichaje" onclick="setStaffTab('fichaje')">Fichaje</button>
-        <button class="tab-btn" id="stafftab-cuotas" onclick="setStaffTab('cuotas')">Contribuciones</button>
+        <button class="tab-btn" id="stafftab-cuotas" onclick="setStaffTab('cuotas')" ${esComision() ? '' : 'hidden'}>Contribuciones</button>
         <button class="tab-btn" id="stafftab-inventario" onclick="setStaffTab('inventario')">Inventario</button>
         <button class="tab-btn" id="stafftab-credenciales" onclick="setStaffTab('credenciales')">Credenciales</button>
         <button class="tab-btn" id="stafftab-anuncios" onclick="setStaffTab('anuncios')">Anuncios</button>
@@ -1475,7 +1482,7 @@ async function ficharIngreso(){
   // El equipo pasa a "en uso" solo: lo hace un trigger en la base (on_fichaje_equipo).
   toast('Ingreso fichado. ¡Buena navegada!');
   await cargarDatos(); renderSocioContent();
-  if (perfil.rol==='staff'||perfil.rol==='admin'){ renderStaffSummary(); renderStaffBoard(); renderStaffHistory(); }
+  if (esEquipo()){ renderStaffSummary(); renderStaffBoard(); renderStaffHistory(); }
 }
 
 async function ficharSalida(fichajeId, desdeStaff){
@@ -1494,7 +1501,7 @@ async function ficharSalida(fichajeId, desdeStaff){
   // El equipo vuelve a "disponible" solo: lo hace un trigger en la base (on_fichaje_equipo).
   toast(desdeStaff ? 'Salida marcada por staff.' : 'Salida fichada. ¡Bienvenido a tierra!');
   await cargarDatos(); renderSocioContent();
-  if (perfil.rol==='staff'||perfil.rol==='admin'){ renderStaffSummary(); renderStaffBoard(); renderStaffHistory(); }
+  if (esEquipo()){ renderStaffSummary(); renderStaffBoard(); renderStaffHistory(); }
 }
 
 async function registrarEsporadico(){
@@ -1794,7 +1801,7 @@ function renderAnunciosSocio(){
   const cont = document.getElementById('socio-anuncios');
   if (!cont) return;
   if (anuncios.length === 0){ cont.innerHTML = '<p class="empty">No hay anuncios por ahora.</p>'; return; }
-  const esModerador = perfil.rol === 'staff' || perfil.rol === 'admin';
+  const esModerador = esEquipo();
   cont.innerHTML = anuncios.map(a => {
     const cantLikes = likesDe(a.id).length;
     const yaLike = yoLikeeEste(a.id);
@@ -1880,7 +1887,7 @@ async function toggleLikeAnuncio(anuncioId){
   }
   await cargarAnuncios();
   renderAnunciosSocio();
-  if (perfil.rol === 'staff' || perfil.rol === 'admin') renderStaffAnuncios();
+  if (esEquipo()) renderStaffAnuncios();
 }
 // Achica la foto antes de subirla (máx. 1600 px, JPEG): una foto de celu de
 // 3-5 MB queda en unos 200-400 KB. Si el navegador no puede, sube la original.
@@ -2146,12 +2153,20 @@ function renderAdherentes(){
     const estado = a.estado === 'activo' ? '' : a.estado === 'pendiente'
       ? chip(completo ? 'pendiente' : 'no completó sus datos', 'color:var(--warn);border-color:var(--warn);')
       : chip('de baja', 'color:var(--danger);border-color:var(--danger);');
-    const rol = a.rol === 'socio' ? '' : chip(a.rol, '');
+    const rol = a.rol === 'socio' ? '' : chip(NOMBRE_ROL[a.rol] || a.rol, '');
     const vencida = a.cuota_vencida ? chip('contribución vencida', 'color:var(--warn);border-color:var(--warn);') : '';
     const esYo = a.id === session.user.id;
-    const boton = a.estado === 'activo'
-      ? (esYo ? '' : `<button class="btn btn-ghost" onclick="cambiarEstadoAdherente('${a.id}', 'inactivo')">Dar de baja</button>`)
-      : (completo || a.estado === 'inactivo' ? `<button class="btn btn-primary" onclick="cambiarEstadoAdherente('${a.id}', 'activo')">${a.estado === 'pendiente' ? 'Aprobar' : 'Habilitar'}</button>` : '');
+    // Aprobar cuentas nuevas: todo el equipo. Dar de baja / habilitar y roles: solo admin.
+    let boton = '';
+    if (a.estado === 'pendiente' && completo) boton = `<button class="btn btn-primary" onclick="cambiarEstadoAdherente('${a.id}', 'activo')">Aprobar</button>`;
+    else if (esAdmin() && !esYo && a.estado === 'activo') boton = `<button class="btn btn-ghost" onclick="cambiarEstadoAdherente('${a.id}', 'inactivo')">Dar de baja</button>`;
+    else if (esAdmin() && a.estado === 'inactivo') boton = `<button class="btn btn-primary" onclick="cambiarEstadoAdherente('${a.id}', 'activo')">Habilitar</button>`;
+    const selectorRol = esAdmin() && !esYo && a.estado === 'activo' ? `
+      <label class="field" style="margin:0;"><span>Rol</span>
+        <select onchange="cambiarRolAdherente('${a.id}', this.value)">
+          ${Object.entries(NOMBRE_ROL).map(([v, t]) => `<option value="${v}" ${a.rol === v ? 'selected' : ''}>${t}</option>`).join('')}
+        </select>
+      </label>` : '';
     return `
       <div class="board-row" style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;">
         <div style="flex:1 1 220px;min-width:0;overflow-wrap:anywhere;">
@@ -2160,9 +2175,30 @@ function renderAdherentes(){
           <div class="hint" style="margin:2px 0 0;">${escaparHtml(a.email || '')}</div>
           <div class="hint" style="margin:2px 0 0;">Emergencia: ${escaparHtml(a.contacto_emergencia || '—')}</div>
         </div>
-        ${boton}
+        <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">${selectorRol}${boton}</div>
       </div>`;
   }).join('');
+}
+const QUE_PUEDE_ROL = {
+  socio: 'Fichar, ver su bitácora, anuncios y su carnet.',
+  guardia: 'Fichajes en vivo, esporádicos, inventario, credenciales, anuncios y aprobar cuentas nuevas. No ve contribuciones ni pagos.',
+  staff: 'Todo lo del guardia, más contribuciones y pagos.',
+  admin: 'Todo, incluido dar de baja adherentes y cambiar roles.'
+};
+async function cambiarRolAdherente(id, rol){
+  const a = adherentesTodos.find(x => x.id === id);
+  if (!a || a.rol === rol){ renderAdherentes(); return; }
+  const ok = await confirmarAccion('¿Cambiar el rol?', [
+    `${nombreAdherente(a)}: ${NOMBRE_ROL[a.rol] || a.rol} → ${NOMBRE_ROL[rol]}`,
+    `${NOMBRE_ROL[rol]} puede: ${QUE_PUEDE_ROL[rol]}`,
+    ...(rol === 'admin' ? ['Ojo: va a tener los mismos permisos que vos, incluido cambiar roles.'] : [])
+  ]);
+  if (!ok){ renderAdherentes(); return; }
+  const { error } = await sb.from('perfiles').update({ rol }).eq('id', id);
+  if (error){ toast('No se pudo cambiar: ' + error.message); renderAdherentes(); return; }
+  toast(`Ahora es ${NOMBRE_ROL[rol]}.`);
+  await cargarAdherentes();
+  await cargarDatosStaffCuotas(); refrescarSelectSocios(); refrescarSelectSociosCredencial();
 }
 async function cambiarEstadoAdherente(id, estado){
   const a = adherentesTodos.find(x => x.id === id);
@@ -2186,7 +2222,7 @@ function renderCuentasPendientes(){
   if (!cont) return;
   // Solo se listan los que ya completaron sus datos y aceptaron los T&C.
   const pendientes = cuentasPorAprobar.filter(c => c.estado === 'pendiente' && c.nombre && c.acepta_tyc);
-  const inactivas = cuentasPorAprobar.filter(c => c.estado === 'inactivo');
+  const inactivas = esAdmin() ? cuentasPorAprobar.filter(c => c.estado === 'inactivo') : [];  // volver a habilitar: solo admin
   const btnTab = document.getElementById('tabbtn-staff');
   if (btnTab) btnTab.textContent = 'Staff / Comisión' + (pendientes.length ? ` (${pendientes.length})` : '');
   if (pendientes.length === 0 && inactivas.length === 0){ cont.innerHTML = ''; return; }
@@ -2338,7 +2374,7 @@ const NOMBRE_CAMPO = {
 };
 const VALOR_LEGIBLE = {
   disponible:'Disponible', en_uso:'En uso', mantenimiento:'En mantenimiento', de_baja:'De baja',
-  en_agua:'En el agua', cerrado:'Cerrado', socio:'Adherente', staff:'Staff', admin:'Admin',
+  en_agua:'En el agua', cerrado:'Cerrado', socio:'Adherente', guardia:'Guardia', staff:'Comisión', admin:'Admin',
   activo:'Activo', inactivo:'Inactivo', mercado_pago:'Mercado Pago', manual:'Manual',
   pendiente:'Pendiente', asociado:'Asociado', descartado:'Descartado',
   embarcacion:'Embarcación', remo:'Remo', chaleco:'Chaleco', kayak:'Kayak', sup:'SUP'

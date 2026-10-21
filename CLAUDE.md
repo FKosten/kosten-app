@@ -27,9 +27,12 @@ Sistema de gestión para Fundación Kosten, una organización sin fines de lucro
 - En iPhone las notificaciones push solo llegan si la PWA está instalada en la pantalla de inicio (limitación de Apple).
 
 ## Roles
-- Adherente (`socio` en la base): Mi carnet (QR + n.° de adherente), fichaje de ingreso/salida, clima y mareas, bitácora propia, anuncios, estado de su contribución (y pago si está vencida), sus certificados.
-- Staff (guardia/instructor): todo lo anterior + fichajes en vivo, cerrar salidas, alta de esporádicos, inventario, marcar contribuciones, cargar anuncios y credenciales.
-- Admin (comisión): todo lo anterior + alta/baja/edición de adherentes y configuración.
+Definidos por Leo el 20/10/2026 (migración `supabase/2026-10-20-roles.sql`). Nombres internos en la base → visibles:
+- `socio` → Adherente: Mi carnet (QR + n.° de adherente), fichaje, clima/mareas/cámara, bitácora propia, anuncios, su contribución, sus certificados.
+- `guardia` → Guardia (quien trabaja en la temporada): todo lo anterior + fichajes en vivo, cerrar salidas, esporádicos, inventario, credenciales, anuncios, aprobar/rechazar cuentas nuevas, ver Adherentes y Registro. NO ve contribuciones ni pagos (tampoco en el Registro). Recibe las alertas de check-fichajes.
+- `staff` → Comisión: todo lo del guardia + contribuciones y pagos.
+- `admin` → Leo (solo él): todo + dar de baja / habilitar adherentes + cambiar roles (selector en la pestaña Adherentes).
+En la base: `is_staff_or_admin()` = guardia/comisión/admin; `es_comision_o_admin()`; `es_admin()`; todas exigen cuenta activa. En la app: `esEquipo()`, `esComision()`, `esAdmin()` (solo deciden qué se muestra; el control real es la base, incluido el trigger `limitar_edicion_perfil`).
 
 ## Modelo de datos
 - perfiles: id (= id de Supabase Auth, se crea por trigger al registrarse), nombre, apellido, dni, fecha_nacimiento, telefono, email, contacto_emergencia, fecha_alta, rol (socio/staff/admin), estado (activo/inactivo), acepta_tyc, fecha_tyc, version_tyc, cuota_vencida, numero_socio (integer unique, secuencia `numero_socio_seq`).
