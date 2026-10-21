@@ -2172,10 +2172,11 @@ function renderAdherentes(){
     const rol = a.rol === 'socio' ? '' : chip(NOMBRE_ROL[a.rol] || a.rol, '');
     const vencida = a.cuota_vencida ? chip('contribución vencida', 'color:var(--warn);border-color:var(--warn);') : '';
     const esYo = a.id === session.user.id;
-    // Aprobar cuentas nuevas: todo el equipo. Dar de baja / habilitar y roles: solo admin.
+    // Aprobar cuentas nuevas: todo el equipo. Dar de baja: admin, o la comisión a
+    // adherentes y guardias. Habilitar y cambiar roles: solo admin.
     let boton = '';
     if (a.estado === 'pendiente' && completo) boton = `<button class="btn btn-primary" onclick="cambiarEstadoAdherente('${a.id}', 'activo')">Aprobar</button>`;
-    else if (esAdmin() && !esYo && a.estado === 'activo') boton = `<button class="btn btn-ghost" onclick="cambiarEstadoAdherente('${a.id}', 'inactivo')">Dar de baja</button>`;
+    else if (puedeDarDeBaja(a)) boton = `<button class="btn btn-ghost" onclick="cambiarEstadoAdherente('${a.id}', 'inactivo')">Dar de baja</button>`;
     else if (esAdmin() && a.estado === 'inactivo') boton = `<button class="btn btn-primary" onclick="cambiarEstadoAdherente('${a.id}', 'activo')">Habilitar</button>`;
     const selectorRol = esAdmin() && !esYo && a.estado === 'activo' ? `
       <label class="field" style="margin:0;"><span>Rol</span>
@@ -2195,10 +2196,17 @@ function renderAdherentes(){
       </div>`;
   }).join('');
 }
+// Admin: a cualquiera menos a sí mismo. Comisión: solo a adherentes y guardias
+// (no a otro de la comisión ni al admin). La base aplica la misma regla.
+function puedeDarDeBaja(a){
+  if (a.estado !== 'activo' || a.id === session.user.id) return false;
+  if (esAdmin()) return true;
+  return esComision() && ['socio', 'guardia'].includes(a.rol);
+}
 const QUE_PUEDE_ROL = {
   socio: 'Fichar, ver su bitácora, anuncios y su carnet.',
   guardia: 'Fichajes en vivo, esporádicos, inventario, credenciales, anuncios y aprobar cuentas nuevas. No ve contribuciones ni pagos.',
-  staff: 'Todo lo del guardia, más contribuciones y pagos.',
+  staff: 'Todo lo del guardia, más contribuciones y pagos, y dar de baja a adherentes y guardias.',
   admin: 'Todo, incluido dar de baja adherentes y cambiar roles.'
 };
 async function cambiarRolAdherente(id, rol){
